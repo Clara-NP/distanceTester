@@ -10,14 +10,9 @@
 enum EXPORT_GPIO
 {
     EM_GPIO_LED,
-    EM_GPIO_BEEP,
-    EM_GPIO_IN1,
-    EM_GPIO_IN2,
-    EM_GPIO_IN3,
-    EM_GPIO_OUT1,
-    EM_GPIO_OUT2,
-    EM_GPIO_OUT3,
-    EM_GPIO_OUT4,
+    EM_GPIO_ROTARY_A,
+    EM_GPIO_ROTARY_B,
+    EM_GPIO_ROTARY_KEY,
     EXPORT_GPIO_MAX_NUM,
 };
 /**
@@ -52,7 +47,7 @@ enum EXPORT_SERIAL
  */
 enum EXPORT_CAN
 {
-    EM_CAN_POWER,
+    EM_CAN_MOTOR,
 
     EXPORT_CAN_MAX_NUM,
 };

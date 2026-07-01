@@ -72,16 +72,9 @@ list(APPEND srcs ${framework_third_path}/json/cJSON/cJSON_Utils.c)
 
 
 ## 遥控箱模块
-# list(APPEND srcs ${module_path}/source/santak_ups.c)
-# list(APPEND srcs ${module_path}/source/huawei_power.c)
-# list(APPEND srcs ${module_path}/source/standardel_ac_meter.c)
-# list(APPEND srcs ${module_path}/source/standardel_dc_meter.c)
-# list(APPEND srcs ${module_path}/source/yuqiu_ac.c)
-# list(APPEND srcs ${module_path}/source/gongyuan_insulation_monitor.c)
-#  list(APPEND srcs ${module_path}/source/io_module.c)
-# list(APPEND srcs ${module_path}/source/sonbest_ths.c)
-# list(APPEND srcs ${module_path}/source/neptune_rctamper.c)
-# list(APPEND srcs ${module_path}/source/alti.c)
+list(APPEND srcs ${module_path}/source/DJI_motor.c)
+# list(APPEND srcs ${module_path}/source/rotary.c)
+list(APPEND srcs ${module_path}/source/io_module.c)
 
 idf_component_register(SRCS ${srcs}
                     INCLUDE_DIRS ${include_dirs})

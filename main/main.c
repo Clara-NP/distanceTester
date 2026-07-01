@@ -6,30 +6,21 @@
 #include "esp_log.h"
 
 #include "config.h"
+#include "motor_manage.h"
+#include "control_manage.h"
+
 
 static const char *TAG = "app";
 
-// void app_main(void)
-// {
-//     esp_chip_info_t chip_info;
-//     esp_chip_info(&chip_info);
-
-//     ESP_LOGI(TAG, "Hello ESP-IDF!");
-//     ESP_LOGI(TAG, "芯片: %s, 核心数: %d", CONFIG_IDF_TARGET, chip_info.cores);
-
-//     int count = 0;
-//     while (1) {
-//         ESP_LOGI(TAG, "运行中... count = %d", count++);
-//         vTaskDelay(pdMS_TO_TICKS(1000));
-//     }
-// }
 extern void boardInit(void);
 void startTask(void *parameter)
 {
+    // 初始化板级硬件
     boardInit();
-
-
-
+    // 电机管理任务
+    motorManageInit();
+    // 控制任务
+    controlManageInit();
     
     // 释放启动任务
     vTaskDelete(NULL);
