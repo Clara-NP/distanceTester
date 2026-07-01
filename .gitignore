@@ -1,0 +1,12 @@
+# ESP-IDF 构建产物
+/build/
+sdkconfig
+sdkconfig.old
+
+# 编辑器/IDE
+.vscode/
+.idea/
+
+# 依赖管理
+managed_components/
+dependencies.lock

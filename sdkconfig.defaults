@@ -1,0 +1,5 @@
+# 工程默认配置（首次构建时会据此生成 sdkconfig）
+# 默认目标芯片为 esp32，可用 `idf.py set-target esp32s3` 等命令切换
+
+# 串口日志波特率
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
