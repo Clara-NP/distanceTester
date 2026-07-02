@@ -7,6 +7,9 @@
 #include "control_manage.h"
 #include "io_module.h"
 #include <gpio/gpio.h>
+#include "rotary.h"
+#include "sys_event_type.h"
+#include "sys_event.h"
 
 #define TRACE_TAG "control-manage"
 #define TRACE_LEVEL T_INFO
@@ -15,64 +18,53 @@
 #include <common/trace.h>
 
 
+
+
+
+/// @brief 编码器
+static const rotaryConfig_t s_rotaryConfigs[] = {
+    { .id = ENCODER_ROTARY, .name = "rotary", .rotaryA = EM_GPIO_ROTARY_A, .rotaryB = EM_GPIO_ROTARY_B, .address = 1},
+};
+
+/// 定义一个电机管理数据结构
+typedef struct {
+    // 对应句柄
+    rotaryController_t *node;
+    const rotaryConfig_t *config;
+    // // 电流过滤器
+    // struct floatFilter currentFilter;
+
+    // motorInfo_t info;
+    // motorAdminStatus_t adminStatus;
+    // motorState_t state;  
+
+    // // 电机编码器的读值
+    // int32_t motorEncoderValue;
+    // int encoderMultipleFactor;
+
+    // // 状态上报定时器
+    // loopTimer_t stateReportTimer;  
+
+    // // 启动加载标志
+    // bool bootChecked;
+    // /// 零点位置是否有效
+    // bool zeroPositionValid;
+    // /// @brief 启动时编码器的位置
+    // int32_t bootPosition;    
+    // /// @brief 零点位置
+    // int32_t zeroPosition;
+
+    // /// 失效管理
+    // motorFailureManage_t failureManage;    
+}rotaryEncoder_t;
+
 /**
  * @berif 扩展IO模块
 */
 typedef struct {
-    /// EM_GPIO_ROTARY_A
-    uint8_t rotaryA;
 
-    /// EM_GPIO_ROTARY_B
-    uint8_t rotaryB;
-
-    /// EM_GPIO_ROTARY_KEY
     uint8_t rotaryKey;
-    ioModuleManage_t *rotaryKeyManage;
 
-
-    // /// 电源开关ID 
-    // uint8_t powerSwitchId;
-    // const customIoFunction_t *powerSwitch;
-    // /// 紧急开关ID
-    // uint8_t emergencySwitchId;
-    // const customIoFunction_t *emergencySwitch;
-    // /// 通用开关ID
-    // uint8_t generalSwitchId;
-    // const customIoFunction_t *generalSwitch;
-    // /// 绿色指示灯ID
-    // uint8_t greenIndicatorLampId;
-    // const customIoFunction_t *greenIndicatorLamp;
-    // /// @brief 电源指示灯闪烁控制实例
-    // ioModuleManage_t *greenIndicatorLampManage;
-    // /// 黄色指示灯ID
-    // uint8_t redIndicatorLampId;
-    // const customIoFunction_t *redIndicatorLamp;
-    // /// @brief 电源指示灯闪烁控制实例
-    // ioModuleManage_t *redIndicatorLampManage;
-    // /// 接触器ID
-    // uint8_t contactorId;
-    // const customIoFunction_t *contactor;
-    // /// 电源指示灯ID
-    // uint8_t powerIndicatorLampId;
-    // const customIoFunction_t *powerIndicatorLamp;
-    // /// @brief 电源指示灯闪烁控制实例
-    // ioModuleManage_t *powerIndicatorLampManage;
-
-    // /// @brief 电源开关状态
-    // bool powerSwitchState;
-    // /// @brief 接触器开关
-    // bool contactorState;
-    // /// @brief 紧急开关状态
-    // bool emergencySwitchState;
-    // /// @brief 通用开关状态
-    // bool generalSwitchState;
-    // /// @brief 电源按键松手标记，用于标记长按(供电状态下)是否已经出发断开电源
-    // bool powerSwitchReleaseFlag;
-
-    // /// @brief 电源按键1秒超时时间（供电/断电）
-    // sysTick_t powerSupplyExpired;
-    // /// @brief 电源按键10秒超时时间（重启）
-    // sysTick_t powerResetExpired;
 }ioModule_t;
 
 
@@ -115,6 +107,9 @@ typedef struct
     /// @brief IO模块
     ioModule_t ioModule;
 
+    /// @brief 编码器
+    rotaryEncoder_t rotarys[ARRAY_SIZE(s_rotaryConfigs)];     
+
     // /// @brief mqtt客户端
     // mqttClientInstance_t *mqttClient;
 
@@ -145,6 +140,17 @@ typedef struct
 }controlManage_t;
 
 
+// static const rotaryConfig_t s_rotaryConfig = 
+// {
+//     .rotaryA = EM_GPIO_ROTARY_A,
+//     .rotaryB = EM_GPIO_ROTARY_B,
+// };
+// ENCODER_ROTARY = 0,
+
+
+
+
+
 static controlManage_t s_controlManage = {0};
 #define getInstance()       &s_controlManage
 
@@ -159,7 +165,7 @@ static bool keyDetection(uint8_t keyId);
 
 int controlManageInit(void)
 {
-
+    int ret = RET_FAILED;
     controlManage_t *m = getInstance();
     osMemset(m, 0, sizeof(controlManage_t));
 
@@ -174,10 +180,43 @@ int controlManageInit(void)
     // m->ioModule.rotaryKeyManage = ioModuleNew(m->ioModule.rotaryKey, "key", false, 1);
     // ASSERT(m->ioModule.rotaryKeyManage != NULL, "rotary key module new failed");
 
+    // m->ioModule.rotaryController = rotaryNew(EM_GPIO_ROTARY_A, EM_GPIO_ROTARY_B, "rotary", &m->ioModule.rotaryConfig);
+    // ASSERT(m->ioModule.rotaryController != NULL, "rotary controller new failed");
+
+
+    // // 创建编码器节点
+    // for (int i = 0; i < ARRAY_SIZE(s_rotaryConfigs); i ++){
+    //     ret = rotaryEncoderNodeInit(&m->rotarys[i], &s_rotaryConfigs[i]);
+    //     ASSERT(ret == RET_SUCCESS, "Init rotary node failed");
+    // }
+    ret = rotaryEncoderInit( NULL);
+    ASSERT(ret == RET_SUCCESS, "rotary encoder init failed");
+
+
+    
     xTaskCreate(controlManageTask, "control-manage", 4096, NULL, CONFIG_CONTROL_MANAGE_TASK_PRIORITY, NULL);
 
     return RET_SUCCESS;
 }
+
+
+
+
+// static int rotaryEncoderNodeInit(rotaryEncoder_t *rotary, const rotaryConfig_t *config)
+// {
+//     osMemset(rotary, 0, sizeof(*rotary));
+//     rotary->node = rotaryNew(config->address);
+//     if (rotary->node == NULL) {
+//         return RET_NO_MEM;
+//     }
+
+//     rotary->config = config;
+    
+//     // 配置节点
+//     return rotaryEncoderInit(rotary->node);
+// }
+
+
 
 static void controlManageTask(void *pvParameters)
 {
@@ -185,19 +224,38 @@ static void controlManageTask(void *pvParameters)
     bool keyPressed = false;
 
     ilog("control manage task start...");
+    static int lastCount = 0;
+    int count = 0;
+
+    rotaryEncoderEvent_t rotaryEventMsg;
+    
     while (1)
     {
-
+        memset(&rotaryEventMsg, 0, sizeof(rotaryEncoderEvent_t));
         /// 按键检测
         keyPressed = keyDetection(m->ioModule.rotaryKey);
         if (keyPressed) {
-            // ilog("rotaryKey pressed");
+            rotaryEventMsg.isVaild = true;
+            rotaryEventMsg.isPressed = true;
+            ilog("rotaryKey pressed");
             // 向电机控制发送命令
         }
-        // /// 12V外部电压检测
-        // externalVoltageDetection();
-        // /// 充电枪插入检测
-        // chargeGunDetection();
+        count = rotaryEncoderRead(NULL);
+        if (count != lastCount) {
+            lastCount = count;
+            rotaryEventMsg.isVaild = true;
+            rotaryEventMsg.count = lastCount;
+            // ilog("rotary count=%d", count);
+        }
+
+        // ilog("rotaryEventMsg.isVaild: %d", rotaryEventMsg.isVaild);
+        if(rotaryEventMsg.isVaild) {
+            sysEventPost(SYS_EVENT_NODE_MOTOR, SYS_EVENT_ROTARY_MESSAGE, &rotaryEventMsg, sizeof(rotaryEncoderEvent_t));
+            // ilog("rotaryEventMsg sent");
+        } else {
+            // ilog("rotaryEventMsg not sent");
+        }
+
         // /// 状态刷新
         // stateUpdate();
         // /// mqtt状态同步
@@ -208,15 +266,10 @@ static void controlManageTask(void *pvParameters)
         // ioModuleSchedule(m->ioModule.powerIndicatorLampManage);
     //     /// 告警状态刷新
     //     alertManageSchedule();
-    //     /// 防拆状态同步
-    //     tamperSynchronous();
-    //     /// 系统状态指示更新
-    //     systemIndicatorUpdate();
+
     //     /// 事件处理
     //     eventQueueReceive();
-    //     /// 延迟执行重启，避免阻塞事件队列消费
-    //     handlePendingReboot();
-        
+
     //     //控制台打印不需要锁
     // #ifdef CONFIG_CONSOLE
     //     if(m->console.traceTimer.enable && loopTimerExpired(&m->console.traceTimer, upTime()))
@@ -224,8 +277,6 @@ static void controlManageTask(void *pvParameters)
     //         dumpState();
     //     }
     // #endif
-
-
 
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }

@@ -12,6 +12,7 @@ set(include_dirs .  ${module_path}/include
                     ${IDF_PATH}/components/driver/gpio/include
                     ${IDF_PATH}/components/driver/uart/include
                     ${IDF_PATH}/components/driver/twai/include
+                    ${IDF_PATH}/components/driver/pcnt/include
                     # ${IDF_PATH}/components/driver/i2c/include
                     ${IDF_PATH}/components/esp_adc/include
                     ${IDF_PATH}/components/console
@@ -44,12 +45,14 @@ list(APPEND srcs ${esp32_platform_path}/soc_uart.c)
 list(APPEND srcs ${esp32_platform_path}/soc_can.c)
 # list(APPEND srcs ${esp32_platform_path}/soc_i2c.c)
 list(APPEND srcs ${esp32_platform_path}/sys_tick.c)
+# list(APPEND srcs ${esp32_platform_path}/soc_quad_encoder.c)
 
 ## 驱动相关
 list(APPEND srcs ${framework_driver_path}/gpio/gpio.c)
 list(APPEND srcs ${framework_driver_path}/adc/adc.c)
 list(APPEND srcs ${framework_driver_path}/serial/serial.c)
 list(APPEND srcs ${framework_driver_path}/can/can.c)
+# list(APPEND srcs ${framework_driver_path}/quad_encoder/quad_encoder.c)
 # list(APPEND srcs ${framework_driver_path}/i2c/i2c.c)
 # list(APPEND srcs ${framework_driver_path}/i2c/i2c_gpio.c)
 
@@ -73,7 +76,7 @@ list(APPEND srcs ${framework_third_path}/json/cJSON/cJSON_Utils.c)
 
 ## 遥控箱模块
 list(APPEND srcs ${module_path}/source/DJI_motor.c)
-# list(APPEND srcs ${module_path}/source/rotary.c)
+list(APPEND srcs ${module_path}/source/rotary.c)
 list(APPEND srcs ${module_path}/source/io_module.c)
 
 idf_component_register(SRCS ${srcs}

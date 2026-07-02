@@ -105,12 +105,17 @@ struct motorController
     // sysTick_t expiredSecond;
 
     /// @brief 输出电流设定值
-    float outputCurrentSet;
+    int speedLevel;
+    /// @brief 是否使能
+    bool enable;
+    // 设置的电流数据
+    int outputCurrentSet;
 
 };
 
 
-
+const int controlData[21] = {-10000, -9000, -8000, -7000, -6000, -5000, -4000, -3000, -2000, -1000, 
+                            0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000};
 
 #define RESET_EXPIRED_TIME(_command, _time)     _command = upTime() + (_time)
 static void __loopReceive(motorController_t *motor);
@@ -203,7 +208,7 @@ void motorSchedule(motorController_t *motor)
     __loopReceive(motor);
 
     connected = motor->state.connected;
-    if (!connected) {
+    if (!connected || !motor->enable) {
         return;
     }
 
@@ -243,7 +248,7 @@ static void __loopReceive(motorController_t *motor)
         receive->valid = true;
         receive->expired = upTime() + 100;   // 100ms 超时
         motor->state.connected = true;
-        ilog("canReceiveData: canId=%d, time=%d", receive->canId, time);
+        // ilog("canReceiveData: canId=%d, time=%d", receive->canId, time);
     } else {
         if (motor->timeoutCount > 3) {
             // connected = false;
@@ -275,13 +280,28 @@ static void __processData(motorController_t *motor)
 
     // 解析receive数据
     receive->valid = false;
-    dlog("processData: canId=%d", receive->canId);
+    // dlog("processData: canId=%d", receive->canId);
 }
 
 static void __sendData(motorController_t *motor)
 {
     int canId = 0x200;
-    uint8_t data[8] = {0x1, 0xD0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
+    uint8_t data[8] = {0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
+    data[0] = motor->outputCurrentSet >> 8;
+    data[1] = motor->outputCurrentSet & 0xFF;
     canSendData(motor->can, canId, data, sizeof(data));
-    dlog("sendData: canId=%d", canId);
+    // dlog("sendData: canId=%d", canId);
+}
+
+void motorSetConfig(motorController_t *motor, bool isChange, int speedLevel)
+{
+    if (isChange) {
+        motor->enable = !motor->enable;
+        ilog("change motor enable: %d", motor->enable);
+    }
+    if (speedLevel != motor->speedLevel) {
+        motor->speedLevel = speedLevel;
+        motor->outputCurrentSet = controlData[speedLevel];
+        ilog("change motor speedLevel: %d", (motor->speedLevel-10));
+    }
 }

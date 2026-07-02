@@ -32,14 +32,17 @@ typedef struct
     /// @brief P2级别的采样周期，ms
     uint16_t samplePeriodP2;
 
-    /// @brief 输出电压
-    float outputVoltage;
-    /// @brief 输出电流
-    float outputCurrent;
-    /// @brief 输出保护电压
-    //float outputProtectVoltage;
-    /// @brief 输出保护电流
-    //float outputProtectCurrent;
+    // /// @brief 输出电压
+    // float outputVoltage;
+    // /// @brief 输出电流
+    // float outputCurrent;
+    // /// @brief 输出保护电压
+    // //float outputProtectVoltage;
+    // /// @brief 输出保护电流
+    // //float outputProtectCurrent;
+
+    int outputCurrentSet;
+    bool enable;
 }motorConfig_t;
 
 
@@ -76,5 +79,5 @@ motorController_t *motorNew(uint8_t can, const char *name, const motorConfig_t *
  * @param motor 
  */
 void motorSchedule(motorController_t *motor);
-
+void motorSetConfig(motorController_t *motor, bool isChange, int speedLevel);
 #endif /* __MOTOR_H__ */

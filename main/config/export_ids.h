@@ -63,4 +63,13 @@ enum EXPORT_I2C
     EXPORT_I2C_MAX_NUM,
 };
 
+
+enum EXPORT_ENCODER
+{
+    ENCODER_ROTARY = 0,
+
+    EXPORT_ENCODER_MAX_NUM
+};
+
+
 #endif
