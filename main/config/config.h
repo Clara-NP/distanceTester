@@ -21,9 +21,16 @@
  * @brief 配置控制管理任务优先级
  * 
  */
- #ifndef CONFIG_CONTROL_MANAGE_TASK_PRIORITY  
- #define CONFIG_CONTROL_MANAGE_TASK_PRIORITY  8
- #endif 
+#ifndef CONFIG_CONTROL_MANAGE_TASK_PRIORITY  
+#define CONFIG_CONTROL_MANAGE_TASK_PRIORITY  8
+#endif 
 
+/**
+ * @brief 配置总线设备管理任务优先级
+ * 
+ */
+ #ifndef CONFIG_BUS_DEVICE_TASK_PRIORITY
+ #define CONFIG_BUS_DEVICE_TASK_PRIORITY     10
+ #endif
 
 #endif

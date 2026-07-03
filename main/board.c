@@ -18,7 +18,7 @@ void boardInit(void)
     // 初始化GPIO
     gpioInit(s_gpios, ARRAY_SIZE(s_gpios));
     // 初始化IIC
-    // i2cInit(s_i2cs, ARRAY_SIZE(s_i2cs));
+    i2cInit(s_i2cs, ARRAY_SIZE(s_i2cs));
     // 初始化ADC
     // adcInit(s_adcs, ARRAY_SIZE(s_adcs));
     // 初始化can

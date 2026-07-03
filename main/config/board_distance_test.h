@@ -3,7 +3,7 @@
 #include "serial/serial.h"
 #include "can/can.h"
 #include "export_ids.h"
-// #include "i2c/i2c.h"
+#include "i2c/i2c.h"
 
 
 /**
@@ -70,7 +70,7 @@ static const canConfig_t s_cans[] =
  * @brief 定义使用的I2C
  * 
  */
-// static const i2cConfig_t s_i2cs[] =
-// {
-//     {.id = EM_I2C_1, .chip = I2C_CHIP_GPIO_SIMULATE, .port = _I2C1, .rate = 100000, .chipParameter = NULL}
-// };
+static const i2cConfig_t s_i2cs[] =
+{
+    {.id = EM_I2C_1, .chip = I2C_CHIP_GPIO_SIMULATE, .port = _I2C1, .rate = 100000, .chipParameter = "scl:18,sda:17"}
+};

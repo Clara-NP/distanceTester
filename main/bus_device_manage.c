@@ -1,0 +1,198 @@
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_system.h"
+#include "esp_log.h"
+
+#include "bus_device_manage.h"
+#include "export_ids.h"
+#include "config.h"
+#include "coil.h"
+
+#define TRACE_TAG "bus-device-manage"
+#define TRACE_LEVEL T_INFO
+#define TRACE_ENABLE
+
+#include <common/trace.h>
+
+/**
+ * @brief BUS设备类型
+ * 
+ */
+enum BUS_DEVICE_TYPE
+{
+    /// @brief 磁感应线圈
+    BUS_DEVICE_TYPE_COIL,
+
+    BUS_DEVICE_TYPE_ALL,
+};
+
+/**
+ * @brief 设备参数
+ * 
+ */
+typedef struct
+{
+    /// @brief 设备类型
+    uint8_t type;
+    /// @brief 设备名称
+    const char *name;
+    /// @brief 设备配置
+    const void *config;
+}busDevicesInfo_t;
+
+static coilConfig_t coilConfig = {
+    .detectionPeriod = 1000,
+    .samplePeriodP0 = 100,
+    .samplePeriodP1 = 200,
+    .samplePeriodP2 = 300,
+    .address = 0x2A,
+    .pt = 1000,
+    .ct = 1000,
+};
+
+/**
+ * @brief bus总线设备
+ * 
+ */
+static busDevicesInfo_t busDevicesInfo[] = 
+{
+    // 磁感应线圈
+    {BUS_DEVICE_TYPE_COIL, "magnetic induction coil",   &coilConfig},
+};
+
+/**
+ * @brief 设备参数
+ * 
+ */
+typedef struct
+{
+    /// @brief 设备信息
+    const busDevicesInfo_t *info;
+
+    /// @brief 是否已连接
+    bool connected;
+    /// @brief 发生故障
+    bool faultOccurred;
+    /// @brief 发生告警
+    bool warnOccurred;
+
+    /// @brief 上电延迟，用于首次检查是否在线
+    sysTick_t powerOnDelay;
+
+    /// @brief 运行状态
+    uint32_t runState;
+
+    /// @brief bus实例
+    void *bus;
+
+    // /// cjson对象管理
+    // busDeviceInfoCjsonMsg_t deviceInfoMsg;
+    // busDeviceStateCjsonMsg_t deviceStateMsg;
+
+    // /// 同步参数管理
+    // syncManage_t syncManage;
+
+}busDevices_t;
+
+/**
+ * @brief 定义一个bus设备控制器
+ * 
+ */
+typedef struct
+{
+    // /// @brief 系统是否准备好
+    // bool systemReady;
+    // /// @brief 是否已连接到mqtt服务器
+    // bool mqttConnected;
+
+    /// @brief 系统时间
+    uint64_t systemTime;
+
+    // /// @brief 事件队列
+    // QueueHandle_t event;
+    // /// @brief 产测参数
+    // factoryParameter_t factory;
+
+    // /// @brief mqtt客户端
+    // mqttClientInstance_t *mqttClient;
+
+    // /// @brief web服务器
+    // webServiceInstance_t *webService;
+
+    /// @brief 设备参数管理
+    busDevices_t device[ARRAY_SIZE(busDevicesInfo)];
+
+// #ifdef CONFIG_CONSOLE
+//     struct
+//     {
+//         /// @brief 是否为打印info
+//         uint8_t traceInfo;
+//         /// @brief 控制台打印类型
+//         uint8_t traceType;
+//         /// @brief 控制台定时器
+//         loopTimer_t traceTimer;
+//     }console;
+
+// #endif
+
+}busDeviceManage_t;
+
+static busDeviceManage_t s_busDeviceManage = {0};
+#define getInstance()       &s_busDeviceManage
+
+static void busDeviceManageTask(void *pvParameters);
+
+/**
+ * @brief RS485总线设备管理任务初始化
+ * 
+ * @return int 
+ */
+int busDeviceManageInit(void)
+{
+    int ret;
+    busDeviceManage_t *m = getInstance();
+    osMemset(m, 0, sizeof(busDeviceManage_t));
+
+    for (int i = 0; i < ARRAY_SIZE(m->device); i++) {
+        m->device[i].info = &busDevicesInfo[i];
+        switch (busDevicesInfo[i].type) {
+            case BUS_DEVICE_TYPE_COIL:
+                m->device[i].bus = coilManageNew(EM_I2C_1, busDevicesInfo[i].name, busDevicesInfo[i].config);
+                break;
+            default:
+                break;
+        }
+    }
+
+    xTaskCreate(busDeviceManageTask, "busDeviceManageTask", 4096, NULL, CONFIG_BUS_DEVICE_TASK_PRIORITY, NULL);
+    return RET_SUCCESS;
+
+
+
+}
+
+static void busDeviceManageTask(void *pvParameters)
+{
+    busDeviceManage_t *m = getInstance();
+    busDevices_t *device;
+
+    ilog("bus device manage task start...");
+
+    while (1) {
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+        for (int i = 0; i < ARRAY_SIZE(m->device); i++) {
+            device = &m->device[i];
+            // switch (device->info->type) {
+            //     case BUS_DEVICE_TYPE_COIL:
+            //         coilManageSchedule(device->bus);
+            //         break;
+            //     default:
+            //         break;
+            // }
+
+            coilManageSchedule(device->bus);
+        }
+
+    }
+}

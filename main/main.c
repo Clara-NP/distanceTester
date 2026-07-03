@@ -8,6 +8,7 @@
 #include "config.h"
 #include "motor_manage.h"
 #include "control_manage.h"
+#include "bus_device_manage.h"
 
 
 static const char *TAG = "app";
@@ -21,6 +22,8 @@ void startTask(void *parameter)
     motorManageInit();
     // 控制任务
     controlManageInit();
+    // 总线设备管理
+    busDeviceManageInit();
     
     // 释放启动任务
     vTaskDelete(NULL);
