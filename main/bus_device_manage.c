@@ -41,21 +41,21 @@ typedef struct
 }busDevicesInfo_t;
 
 static coilConfig_t coilConfig = {
-    .detectionPeriod = 1000,
-    .samplePeriodP0 = 100,
-    .samplePeriodP1 = 200,
-    .samplePeriodP2 = 300,
     .address = 0x2A,
-    .pt = 1000,
-    .ct = 1000,
+    .channelEna = COIL_CHANNEL_ENABLE_0 | COIL_CHANNEL_ENABLE_1,
+    // .detectionPeriod = 1000,
+    // .samplePeriodP0 = 100,
+    // .samplePeriodP1 = 200,
+    // .samplePeriodP2 = 300,
+    // .pt = 1000,
+    // .ct = 1000,
 };
 
 /**
  * @brief bus总线设备
  * 
  */
-static busDevicesInfo_t busDevicesInfo[] = 
-{
+static busDevicesInfo_t busDevicesInfo[] = {
     // 磁感应线圈
     {BUS_DEVICE_TYPE_COIL, "magnetic induction coil",   &coilConfig},
 };
@@ -64,8 +64,7 @@ static busDevicesInfo_t busDevicesInfo[] =
  * @brief 设备参数
  * 
  */
-typedef struct
-{
+typedef struct {
     /// @brief 设备信息
     const busDevicesInfo_t *info;
 
@@ -98,8 +97,7 @@ typedef struct
  * @brief 定义一个bus设备控制器
  * 
  */
-typedef struct
-{
+typedef struct {
     // /// @brief 系统是否准备好
     // bool systemReady;
     // /// @brief 是否已连接到mqtt服务器
@@ -135,7 +133,7 @@ typedef struct
 
 // #endif
 
-}busDeviceManage_t;
+} busDeviceManage_t;
 
 static busDeviceManage_t s_busDeviceManage = {0};
 #define getInstance()       &s_busDeviceManage

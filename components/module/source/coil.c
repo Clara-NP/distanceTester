@@ -12,16 +12,111 @@
 
 #include <common/trace.h>
 
-#define LDC1614_DEVICE_ID_ADDR 0x7F
+
+#define LDC1614_CHANNEL_0   0
+#define LDC1614_CHANNEL_1   1
+#define LDC1614_CHANNEL_2   2
+#define LDC1614_CHANNEL_3   3
+
 // LDC1614 寄存器地址
-#define REG_DATA_CH0_MSB       0x00
-#define REG_DATA_CH0_LSB       0x01
-#define REG_DATA_CH1_MSB       0x02
-#define REG_DATA_CH1_LSB       0x03
-#define REG_DATA_CH2_MSB       0x04
-#define REG_DATA_CH2_LSB       0x05
-#define REG_DATA_CH3_MSB       0x06
-#define REG_DATA_CH3_LSB       0x07
+// MSB [15:12]   
+//              15- ERR_UR0  欠量程错误   传感器频率过低（测量值低于最小可测范围）
+//              14- ERR_OR0 超量程错误   传感器频率过高（测量值超出最大可测范围）
+//              13- ERR_WD0 看门狗超时   传感器未能正常起振或振荡中断
+//              12- ERR_AE0 幅度错误     传感器振荡幅度未稳定在 1.2V~1.8V 范围内
+//                                      该位如果经常为1, 说明 DRIVE_CURRENT 或 SETTLECOUNT 配置有问题。
+//     [11:0] - 高12位数据
+#define LDC1614_CHANNEL_MSB_REG(x)                  (0x00 + x*2)   //0 2 4 6
+#define LDC1614_CHANNEL_LSB_REG(x)                  (0x01 + x*2)   //1 3 5 7
+
+// 转换时长  控制转换时长（精度）
+// 0x00 - 0x04  resv
+// 0x05 - 0xFFFF  为有效值， 转换时间：tC0 = (RCOUNT0 × 16) / fREF0
+#define LDC1614_CHANNEL_RCOUNT_REG(x)               (0x08 + x) // 8 9 a b
+
+// 用于减去固定的频率偏移，可以让你在关心的测量范围内获得更高的有效分辨率
+// ƒOFFSET0=(OFFSET0/(2^16))×ƒREF0
+#define LDC1614_CHANNEL_OFFSET_REG(x)               (0x0C + x) // c d e f
+
+// 通道建立时间  控制建立时长（起振稳定）
+// 0x0000 或 0x0001 → tS0 = 32 / fREF0
+// tS0 = (SETTLECOUNT0 × 16) / fREF0
+#define LDC1614_CHANNEL_SETTLECOUNT_REG(x)          (0x10 + x) //10 11 12 13
+/**
+LDC1614_CHANNEL_CLOCK_DIVIDERS_REG
+[15:12] FIN_DIVIDER0 - 0- 传感器输入分频：fIN0 = fSENSOR0 / FIN_DIVIDER0
+[11:10] RESERVED
+[9:0]  FREF_DIVIDER0   fREF0 = fCLK / FREF_DIVIDER0
+*/
+#define LDC1614_CHANNEL_CLOCK_DIVIDERS_REG(x)       (0x14 + x)  // 14 15 16 17
+#define LDC1614_CHANNEL_DRIVE_CURRENT_REG(x)        (0x1E + x) // 1e 1f 20 21
+
+/**
+[15:14]   错误通道指示：00→通道0，01→通道1，10→通道2，11→通道3
+[13]      任意通道发生欠量程错误（汇总标志）
+[12]      任意通道发生超量程错误（汇总标志）
+[11]      任意通道发生看门狗超时（汇总标志）
+[10]      幅度过高错误（汇总标志）
+[9]       幅度过低错误（汇总标志）
+[8]       零交叉错误（传感器未能产生有效过零信号）
+[7]       保留 
+[6]       数据就绪（Data Ready）：当有新转换数据时置1，读取后清零
+[5:4]       保留
+[3]       通道0有未读的新转换数据
+[2]       通道1有未读的新转换数据
+[1]       通道2有未读的新转换数据
+[0]       通道3有未读的新转换数据
+*/
+#define LDC1614_STATUS_REG                          0x18
+/**
+[15:5]   RESV
+[4]      使能幅度错误报告到 INTB 引脚和状态寄存器
+[3]      使能看门狗超时错误报告
+[2]      使能量程错误报告
+[1]      使能欠量程错误报告
+[0]      使能数据就绪中断（转换完成时 INTB 引脚输出低脉冲）
+*/
+#define LDC1614_ERROR_CONFIG_REG                    0x19
+
+/**
+LDC1614_CONFIG_REG
+[15:14]  ACTIVE_CHAN - 0/1/2/3    当LDC1614_MUX_CONFIG_REG.rr_sequence为0时，ACTIVE_CHAN有效
+[13]     SLEEP_MODE_EN  - 1 - 休眠模式使能：1=SLEEP，0=ACTIVE
+[12]    RP_OVERRIDE_EN
+[11]    传感器激活模式   - 1  - 0-电流激活  1- 低功耗模式
+[10]    AUTO_AMP_DIS   0  自动传感器幅度校准使能：0=使能 1=禁止
+[9]     REF_CLK_SRC  - 0  - 内部振荡器使能：0=使用内部振荡器 1=使用外部 CLKIN
+[8]    RESV
+[7]    INTB_DIS           0-当有数据时 INTB引脚拉低 1-INTB引脚保持高电平
+[6]    HIGH_CURRENT_DRV  是否需要使用高电流驱动所有通道（>1.5mA）
+[5:0]  RESV
+*/
+#define LDC1614_CONFIG_REG                          0x1A
+/**
+LDC1614_MUX_CONFIG_REG
+[15] 自动扫描使能 0-自动扫描单通道(config.active_chan) 1-自动扫描多通道 (mux_config.rr_sequence)
+[14:13] 自动扫描配置(rr_sequence)
+[12:3] RESV
+[2:0] 去毛刺过滤器带宽  1-1Mhz/8-3.3Mhz/9-10Mhz/11-33Mhz
+*/
+#define LDC1614_MUX_CONFIG_REG                      0x1B
+// 写入1触发软件复位，所有寄存器恢复默认值。读取时始终返回0
+#define LDC1614_RESET_DEV_REG                       0x1C
+// 固定为0x5449（'TI'），可用于I2C通信自检
+#define LDC1614_MANUFACTURER_ID_REG                 0x7E
+// 固定为0x3055，可用于确认芯片型号是LDC1614
+#define LDC1614_DEVICE_ID_REG                       0x7F
+
+#define LDC1614_CONFIG_REG_DEFAULT                  0x011e     // 0x1e01 内部振荡器使能，正常转换模式
+#define LDC1614_CHANNEL_RCOUNT_DEFAULT              0xFFFF
+#define LDC1614_CHANNEL_OFFSET_DEFAULT              0x0000
+#define LDC1614_CHANNEL_SETTLECOUNT_DEFAULT         0x0004
+#define LDC1614_CHANNEL_CLOCK_DIVIDERS_DEFAULT      0x0110
+#define LDC1614_CHANNEL_DRIVE_CURRENT_DEFAULT       0x0088
+#define LDC1614_RESET_DEV_REG_DEFAULT               0x0000
+#define LDC1614_MUX_CONFIG_REG_DEFAULT              0x0c82 // 自动扫描多通道，3.3Mhz带宽
+
+
 /**
  * @brief 定义一个磁感应线圈管理器
  * 
@@ -32,8 +127,8 @@ struct coilManage
     //uint8_t id;
     /// UART ID
     uint8_t bus;
-    // /// 超时计数
-    // uint8_t timeoutCount;
+    /// 超时计数
+    uint8_t timeoutCount;
     // /// 空调类型
     // uint8_t type;
     // /// 协议是否已经确认
@@ -58,15 +153,11 @@ struct coilManage
     // acRunConfig_t runConfig;
 };
 
-static int ldc1614_configure(coilManage_t *coil);
-static uint16_t ldc1614_read_register(coilManage_t *coil, uint8_t reg);
+static int ldc1614Config(coilManage_t *coil);
 static void ldc1614_debug(coilManage_t *coil);
-static uint32_t read_channel_data(coilManage_t *coil, uint8_t msb_addr);
-
-
-// const uint16_t ldc1614Reg[] = {0x08, 0x09, 0x0A, 0x0B, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20, 0x21};
-// const uint16_t ldc1614RegData[] = {0xffff, 0xffff, 0xffff, 0xffff, 0x0400, 0x0400, 0x0400, 0x0400, 0x1001, 0x1001, 0x1001, 0x1001,  }
-
+static int ldc1614WriteRegister16(coilManage_t *coil, uint8_t reg, uint16_t data);
+static int ldc1614ReadChannelData(coilManage_t *coil, uint8_t channel);
+static int ldc1614ReadRegister16(coilManage_t *coil, uint8_t reg, uint16_t *data);
 
 /**
  * @brief 创建一个磁感应线圈管理器
@@ -86,30 +177,115 @@ coilManage_t *coilManageNew(uint8_t bus, const char *name, const coilConfig_t *c
     osMemset(m, 0, sizeof(coilManage_t));
     m->bus = bus;
     m->config = config;
-    // osMemcpy(m->name, name, strlen(name));
-    // m->name[strlen(name)] = '\0';
-
-    uint8_t data[2] = {0};
-    int ret = 0;
-    ret = i2cReadByteData(m->bus, m->config->address, LDC1614_DEVICE_ID_ADDR, data, 2);
-    if (ret != RET_SUCCESS) {
-        elog("LDC1614 device ID read failed, bus=%d, address=0x%x, reg=0x%x", m->bus, m->config->address, LDC1614_DEVICE_ID_ADDR);
-        osFree(m);
-        return NULL;
-    } 
-
-    dlog("LDC1614 device ID read success, bus=%d, address=0x%x, reg=0x%x, data=%x %x", m->bus, m->config->address, LDC1614_DEVICE_ID_ADDR, data[0], data[1]);
-    if (data[0] != 0x30 || data[1] != 0x55) {
-        elog("LDC1614 device ID read failed, bus=%d, address=0x%x, reg=0x%x, data=%x %x", m->bus, m->config->address, LDC1614_DEVICE_ID_ADDR, data[0], data[1]);
-        osFree(m);
-        return NULL;
-    }
 
     ilog("coilManageNew success");
     return m;
 }
 
-static int ldc1614_write_register(coilManage_t *coil, uint8_t reg, uint16_t data)
+static int ldc1614Config(coilManage_t *coil)
+{
+    uint16_t device_id = 0;
+    int ret;
+    ret = ldc1614ReadRegister16(coil, LDC1614_DEVICE_ID_REG, &device_id);
+    if (ret != RET_SUCCESS) {
+        // elog("LDC1614 device ID read failed, bus=%d, address=0x%x, reg=0x%x", coil->bus, coil->config->address, LDC1614_DEVICE_ID_REG);
+        return RET_FAILED;
+    }
+
+    for(int i = 0; i < 4; i++) {
+        ret = ldc1614WriteRegister16(coil, LDC1614_CHANNEL_RCOUNT_REG(i), LDC1614_CHANNEL_RCOUNT_DEFAULT);
+        if (ret != RET_SUCCESS) {
+            return RET_FAILED;
+        }
+        ret = ldc1614WriteRegister16(coil, LDC1614_CHANNEL_OFFSET_REG(i), LDC1614_CHANNEL_OFFSET_DEFAULT);
+        if (ret != RET_SUCCESS) {
+            return RET_FAILED;
+        }
+        ret = ldc1614WriteRegister16(coil, LDC1614_CHANNEL_SETTLECOUNT_REG(i), LDC1614_CHANNEL_SETTLECOUNT_DEFAULT);
+        if (ret != RET_SUCCESS) {
+            return RET_FAILED;
+        }
+        ret = ldc1614WriteRegister16(coil, LDC1614_CHANNEL_CLOCK_DIVIDERS_REG(i), LDC1614_CHANNEL_CLOCK_DIVIDERS_DEFAULT);
+        if (ret != RET_SUCCESS) {
+            return RET_FAILED;
+        }
+        ret = ldc1614WriteRegister16(coil, LDC1614_CHANNEL_DRIVE_CURRENT_REG(i), LDC1614_CHANNEL_DRIVE_CURRENT_DEFAULT);
+        if (ret != RET_SUCCESS) {
+            return RET_FAILED;
+        }
+    }
+
+    ret = ldc1614WriteRegister16(coil, LDC1614_CONFIG_REG, LDC1614_CONFIG_REG_DEFAULT);
+    if (ret != RET_SUCCESS) {
+        return RET_FAILED;
+    }
+    ret = ldc1614WriteRegister16(coil, LDC1614_MUX_CONFIG_REG, LDC1614_MUX_CONFIG_REG_DEFAULT);
+    if (ret != RET_SUCCESS) {
+        return RET_FAILED;
+    }
+    ret = ldc1614WriteRegister16(coil, LDC1614_RESET_DEV_REG, LDC1614_RESET_DEV_REG_DEFAULT);
+    if (ret != RET_SUCCESS) {
+        return RET_FAILED;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(10));  // 等待芯片稳定
+    return RET_SUCCESS;
+}
+
+
+
+static int ldc1614ReadRegister16(coilManage_t *coil, uint8_t reg, uint16_t *data)
+{
+    uint8_t readBuffer[2] = {0};
+    int ret = 0;
+    ret = i2cReadByteData(coil->bus, coil->config->address, reg, readBuffer, 2);
+    if (ret != RET_SUCCESS) {
+        elog("read register[0x%02X] failed", reg);
+        return RET_FAILED;
+    }
+    *data = (readBuffer[0] << 8) | readBuffer[1];
+    return RET_SUCCESS;
+}
+/**
+ * @brief 读取通道28位数据 (两次独立I2C读：先读MSB触发锁存，再读LSB)
+ * @param coil 线圈管理器
+ * @param channel 通道号
+ * @param data 数据
+ * @return RET_SUCCESS 成功
+ * @return RET_FAILED 失败
+ */
+static int ldc1614ReadChannelData(coilManage_t *coil, uint8_t channel)
+{
+    uint16_t dataMsb = 0;
+    uint16_t dataLsb = 0;
+    uint16_t errorMask = 0;
+    int ret;
+    ret = ldc1614ReadRegister16(coil, LDC1614_CHANNEL_MSB_REG(channel), &dataMsb);
+    if (ret != RET_SUCCESS) {
+        elog("read channle[%d] msb data failed", channel);
+        return RET_FAILED;
+    }
+    errorMask = dataMsb & 0xF000;
+    if (errorMask) {
+        errorMask = errorMask >> 12;
+        errorMask = errorMask & 0x000F;
+        errorMask = errorMask << (channel *4);
+        coil->state.runStateMask |= errorMask;
+        elog("channle[%d] error flags: 0x%04X", channel, errorMask);
+        return RET_FAILED;
+    }
+    ret = ldc1614ReadRegister16(coil, LDC1614_CHANNEL_LSB_REG(channel), &dataLsb);
+    if (ret != RET_SUCCESS) {
+        elog("read channle[%d] lsb data failed", channel);
+        return RET_FAILED;
+    }
+
+    coil->state.data[channel] = ((uint32_t)(dataMsb & 0x0FFF) << 16) | dataLsb;
+    dlog("channle[%d] data: 0x%08X (%u)", channel, (unsigned int)coil->state.data[channel], (unsigned int)coil->state.data[channel]);
+    return RET_SUCCESS;
+}
+
+static int ldc1614WriteRegister16(coilManage_t *coil, uint8_t reg, uint16_t data)
 {
     int ret = 0;
     ret = i2cWriteByteData(coil->bus, coil->config->address, reg, (uint8_t *)&data, 2);
@@ -120,192 +296,62 @@ static int ldc1614_write_register(coilManage_t *coil, uint8_t reg, uint16_t data
     return RET_SUCCESS;
 }
 
-static int ldc1614_configure(coilManage_t *coil)
-{
-    int ret = 0;
-    int i = 0;
-    uint16_t config = 0;
-
-    config = 0xffff;
-    for(i = 0; i < 4; i++) {
-        ldc1614_write_register(coil, 0x08+i, config);
-    }
-
-    config = 0x0;
-    for (i = 0; i < 4; i++) {
-        ldc1614_write_register(coil, 0x0C+i, config);
-    }
-
-    // config = 0x0400;
-    config = 0x0004;
-    for (i = 0; i < 4; i++) {
-        ldc1614_write_register(coil, 0x10+i, config);
-    }
-
-    // config = 0x1001;
-    config = 0x0110;
-    for (i = 0; i < 4; i++) {
-        ldc1614_write_register(coil, 0x14+i, config);
-    }
-
-    // config = 0x1e01;
-    config = 0x011e;
-    ldc1614_write_register(coil, 0x1A, config);
-
-    // config = 0x820c;
-    config = 0x0c82;
-    ldc1614_write_register(coil, 0x1B, config);
-
-    config = 0x0000;
-    ldc1614_write_register(coil, 0x1c, config);
-
-    // config = 0x8c40;
-    config = 0x408c;
-    ldc1614_write_register(coil, 0x1E, config);
-    ldc1614_write_register(coil, 0x1F, config);
-    vTaskDelay(pdMS_TO_TICKS(10));  // 等待芯片稳定
-
-    // // config = 0x8800;
-    // config = 0x0088;
-    // ldc1614_write_register(coil, 0x20, config);
-    // ldc1614_write_register(coil, 0x21, config);
-    // vTaskDelay(pdMS_TO_TICKS(10));  // 等待芯片稳定
-
-    return RET_SUCCESS;
-
-
-
-
-
-
-
-
-
-    // // 1. 唤醒芯片 (配置寄存器)
-    // // CONFIG 寄存器 (0x1A)
-    // // BIT15: 软件复位 (1=复位)
-    // // BIT13: 关断模式 (0=唤醒, 1=关断)
-    // // BIT11-10: 转换模式 (01=单次, 10=连续)
-    // uint16_t config = 0x0000;
-    // config |= (0 << 13);   // 唤醒 (0=唤醒)
-    // config |= (2 << 10);   // 连续转换模式 (10)
-    // config |= (1 << 0);    // 使能传感器 (ACTIVE_CH0)
-
-    // config = 0x1e01;
-    // ret = i2cWriteByteData(coil->bus, coil->config->address, 0x1A, (uint8_t *)&config, 2);
-    // if (ret != RET_SUCCESS) {
-    //     elog("LDC1614 configure failed, bus=%d, address=0x%x, reg=0x%x", coil->bus, coil->config->address, 0x1A);
-    //     return RET_FAILED;
-    // }
-    // // ldc1614_write_register(0x1A, config);
-    
-    // // 2. 设置 MUX_CONFIG (0x1B)
-    // // BIT0-2: 选择通道序列
-    // // uint16_t muxConfig = 0x0001;
-    // uint16_t muxConfig = 0x820c;
-    // ret = i2cWriteByteData(coil->bus, coil->config->address, 0x1B, (uint8_t *)&muxConfig, 2);
-    // if (ret != RET_SUCCESS) {
-    //     elog("LDC1614 configure failed, bus=%d, address=0x%x, reg=0x%x", coil->bus, coil->config->address, 0x1B);
-    //     return RET_FAILED;
-    // }
-    // // ldc1614_write_register(0x1B, 0x0001);  // 只使能通道0
-    
-    // // 3. 设置 RCOUNT (参考计数) - 决定转换时间
-    // // RCOUNT_CH0 (0x08)
-    // // uint16_t rcount = 0x0BB8;
-    // uint16_t rcount = 0xFFFF;
-    // ret = i2cWriteByteData(coil->bus, coil->config->address, 0x08, (uint8_t *)&rcount, 2);
-    // if (ret != RET_SUCCESS) {
-    //     elog("LDC1614 configure failed, bus=%d, address=0x%x, reg=0x%x", coil->bus, coil->config->address, 0x08);
-    //     return RET_FAILED;
-    // }
-    // // ldc1614_write_register(0x08, 0x0BB8);  // 3000 计数 (典型值)
-    
-    // // 4. 设置 SETTLECOUNT (稳定计数)
-    // // SETTLECOUNT_CH0 (0x10)
-    // // uint16_t settlecount = 0x0064;
-    // uint8_t settlecount = 0x400;
-    // ret = i2cWriteByteData(coil->bus, coil->config->address, 0x10, (uint8_t *)&settlecount, 2);
-    // if (ret != RET_SUCCESS) {
-    //     elog("LDC1614 configure failed, bus=%d, address=0x%x, reg=0x%x", coil->bus, coil->config->address, 0x10);
-    //     return RET_FAILED;
-    // }
-    // // ldc1614_write_register(0x10, 0x0064);  // 100 计数 (典型值)
-    
-    // // 5. 设置驱动电流
-    // // DRIVE_CURRENT_CH0 (0x1E)
-    // // uint16_t driveCurrent = 0x8000;
-    // uint16_t driveCurrent = 0x8c40;
-    // ret = i2cWriteByteData(coil->bus, coil->config->address, 0x1E, (uint8_t *)&driveCurrent, 2);
-    // if (ret != RET_SUCCESS) {
-    //     elog("LDC1614 configure failed, bus=%d, address=0x%x, reg=0x%x", coil->bus, coil->config->address, 0x1E);
-    //     return RET_FAILED;
-    // }
-    
-    vTaskDelay(pdMS_TO_TICKS(10));  // 等待芯片稳定
-    return RET_SUCCESS;
-}
-
-
-
-
-static uint16_t ldc1614_read_register(coilManage_t *coil, uint8_t reg)
-{
-    uint8_t readBuffer[2] = {0};
-    int ret = 0;
-    ret = i2cReadByteData(coil->bus, coil->config->address, reg, readBuffer, 2);
-    if (ret != RET_SUCCESS) {
-        elog("LDC1614 read register failed, bus=%d, address=0x%x, reg=0x%x", coil->bus, coil->config->address, reg);
-        return 0;
-    }
-    return (readBuffer[0] << 8) | readBuffer[1];
-}
-
 /**
  * @brief 调试函数：读取并打印所有关键寄存器
  */
 static void ldc1614_debug(coilManage_t *coil)
 {
+    int ret;
+    uint16_t data;
     ilog("========== LDC1614 Debug ==========");
     for (int i = 0x08; i < 0x22; i++) {
-        uint16_t data = ldc1614_read_register(coil, i);
+        ret = ldc1614ReadRegister16(coil, i, &data);
+        if (ret != RET_SUCCESS) {
+            elog("read register[0x%02X] failed", i);
+        }
         ilog("REG 0x%02X: 0x%04X", i, data);
     }
 
     // 1. 检查设备 ID
-    uint16_t id = ldc1614_read_register(coil, 0x7F);
-    ilog("Device ID:     0x%04X %s", id, (id == 0x3055) ? "[OK]" : "[ERROR]");
+    ldc1614ReadRegister16(coil, 0x7F, &data);
+    ilog("Device ID:     0x%04X %s", data, (data == 0x3055) ? "[OK]" : "[ERROR]");
 
     // 2. 读取配置寄存器
-    uint16_t config = ldc1614_read_register(coil, 0x1A);
-    ilog("CONFIG:        0x%04X", config);
-    ilog("  - Power mode: %s", (config & (1 << 13)) ? "SHUTDOWN" : "ACTIVE [OK]");
-    ilog("  - Conv mode:  %s", ((config >> 10) & 0x03) == 2 ? "Continuous [OK]" : "Other");
-
-    // // 3. 读取通道0数据 (先读MSB触发锁存，再读LSB)
-    // uint32_t ch0_data = read_channel_data(coil, 0x00);
-    // uint16_t msb = (ch0_data >> 16) & 0xFFFF;
-    // uint16_t lsb = ch0_data & 0xFFFF;
-    // ilog("CH0 MSB:       0x%04X", msb);
-    // ilog("  - Error flags: 0x%X %s", (msb >> 12) & 0xF, ((msb >> 12) & 0xF) == 0 ? "[OK]" : "[WARN]");
-    // ilog("  - Data high:   0x%03X", msb & 0x0FFF);
-    // ilog("CH0 LSB:       0x%04X", lsb);
-    // ilog("CH0 Full 28-bit: 0x%08X", (unsigned int)ch0_data);
+    ldc1614ReadRegister16(coil, 0x1A, &data);
+    ilog("CONFIG:        0x%04X", data);
+    ilog("  - Power mode: %s", (data & (1 << 13)) ? "SHUTDOWN" : "ACTIVE [OK]");
+    ilog("  - Conv mode:  %s", ((data >> 10) & 0x03) == 2 ? "Continuous [OK]" : "Other");
 
     // 6. 检查其他关键寄存器
-    uint16_t rcount = ldc1614_read_register(coil, 0x08);
-    ilog("RCOUNT_CH0:    0x%04X", rcount);
+    ldc1614ReadRegister16(coil, 0x08, &data);
+    ilog("RCOUNT_CH0:    0x%04X", data);
+    ldc1614ReadRegister16(coil, 0x09, &data);
+    ilog("RCOUNT_CH1:    0x%04X", data);
+    ldc1614ReadRegister16(coil, 0x0A, &data);
+    ilog("RCOUNT_CH2:    0x%04X", data);
+    ldc1614ReadRegister16(coil, 0x0B, &data);
+    ilog("RCOUNT_CH4:    0x%04X", data);
 
-    uint16_t settle = ldc1614_read_register(coil, 0x10);
-    ilog("SETTLECOUNT:   0x%04X", settle);
+    ldc1614ReadRegister16(coil, 0x10, &data);
+    ilog("SETTLECOUNT0:    0x%04X", data);
+    ldc1614ReadRegister16(coil, 0x11, &data);
+    ilog("SETTLECOUNT1:    0x%04X", data);
+    ldc1614ReadRegister16(coil, 0x12, &data);
+    ilog("SETTLECOUNT2:    0x%04X", data);
+    ldc1614ReadRegister16(coil, 0x13, &data);
+    ilog("SETTLECOUNT3:    0x%04X", data);
 
-    uint16_t drive = ldc1614_read_register(coil, 0x1E);
-    ilog("DRIVE_CURRENT: 0x%04X", drive);
+    ldc1614ReadRegister16(coil, 0x1E, &data);
+    ilog("DRIVE_CURRENT0:    0x%04X", data);
+    ldc1614ReadRegister16(coil, 0x1F, &data);
+    ilog("DRIVE_CURRENT1:    0x%04X", data);
+    ldc1614ReadRegister16(coil, 0x20, &data);
+    ilog("DRIVE_CURRENT2:    0x%04X", data);
+    ldc1614ReadRegister16(coil, 0x21, &data);
+    ilog("DRIVE_CURRENT3:    0x%04X", data);
 
     ilog("====================================");
 }
-
-
 
 /**
  * @brief coil Schedule
@@ -315,53 +361,37 @@ static void ldc1614_debug(coilManage_t *coil)
 void coilManageSchedule(coilManage_t *coil)
 {
     int ret = 0;
-    if (!coil->state.ready) {
-        ret = ldc1614_configure(coil);
+    if (!coil->state.ready || !coil->state.connected) {
+        ret = ldc1614Config(coil);
         if (ret != RET_SUCCESS) {
-            elog("LDC1614 configure failed, bus=%d, address=0x%x", coil->bus, coil->config->address);
+            coil->timeoutCount++;
+            if (coil->timeoutCount < 3) {
+                elog("LDC1614 configure failed, bus=%d, address=0x%x", coil->bus, coil->config->address);
+            }
             return;
         }
         coil->state.ready = true;
+        coil->state.connected = true;
+        coil->timeoutCount = 0;
         ilog("LDC1614 configure success, bus=%d, address=0x%x", coil->bus, coil->config->address);
         ldc1614_debug(coil);
     }
 
-    // 单次I2C事务读取MSB+LSB，保证同一时刻的完整数据快照
-    uint32_t ch0data = read_channel_data(coil, REG_DATA_CH0_MSB);
-    ilog("CH0 Data: 0x%08X (%u)", (unsigned int)ch0data, (unsigned int)ch0data);
-    // 单次I2C事务读取MSB+LSB，保证同一时刻的完整数据快照
-    uint32_t ch1data = read_channel_data(coil, REG_DATA_CH1_MSB);
-    ilog("CH1 Data: 0x%08X (%u)", (unsigned int)ch1data, (unsigned int)ch1data);
-    // // 单次I2C事务读取MSB+LSB，保证同一时刻的完整数据快照
-    // uint32_t ch2data = read_channel_data(coil, REG_DATA_CH2_MSB);
-    // ilog("CH2 Data: 0x%08X (%u)", (unsigned int)ch2data, (unsigned int)ch2data);
-    // // 单次I2C事务读取MSB+LSB，保证同一时刻的完整数据快照
-    // uint32_t ch3data = read_channel_data(coil, REG_DATA_CH3_MSB);
-    // ilog("CH3 Data: 0x%08X (%u)", (unsigned int)ch3data, (unsigned int)ch3data);
-}
-
-
-/**
- * @brief 读取通道28位数据 (两次独立I2C读：先读MSB触发锁存，再读LSB)
- * @param coil 线圈管理器
- * @param msb_addr MSB寄存器地址 (LSB地址为 msb_addr+1)
- * @return 28位数据，读取失败返回0
- *
- * @note LDC1614 要求先发起一次独立的I2C读操作读取DATAx_MSB以触发
- *       数据更新和锁存，随后立即发起第二次独立的I2C读操作读取DATAx_LSB，
- *       才能拿到同一次转换的完整数据。不能用单次突发读。
- */
-static uint32_t read_channel_data(coilManage_t *coil, uint8_t msb_addr)
-{
-    // 第一次I2C读：读MSB寄存器，触发芯片内部锁存LSB
-    uint16_t msb = ldc1614_read_register(coil, msb_addr);
-    // 紧接着第二次I2C读：读LSB寄存器（此时锁存的是与MSB同一次转换的数据）
-    uint16_t lsb = ldc1614_read_register(coil, msb_addr + 1);
-
-    if (msb & 0xF000) {
-        elog("Error flags: 0x%04X", msb & 0xF000);
+    for(int i = 0; i < 4; i++) {
+        if (coil->config->channelEna & (1 << i)) {
+            ret = ldc1614ReadChannelData(coil, i);
+            if (ret != RET_SUCCESS) {
+                elog("LDC1614 read channel data failed, bus=%d, address=0x%x, channel=%d", coil->bus, coil->config->address, i);
+                coil->timeoutCount++;
+                continue;
+            }
+            coil->timeoutCount = 0;
+        }
     }
 
-    uint32_t result = ((uint32_t)(msb & 0x0FFF) << 16) | lsb;
-    return result;
+    if (coil->timeoutCount >= 3) {
+        coil->state.connected = false;
+        coil->state.ready = false;
+        coil->timeoutCount = 0;
+    }
 }

@@ -13,22 +13,33 @@ typedef struct coilManage coilManage_t;
  */
 typedef struct
 {
-    /// @brief 探测周期，ms
-    uint16_t detectionPeriod;
-    /// @brief P0级别的采样周期，ms
-    uint16_t samplePeriodP0;
-    /// @brief P1级别的采样周期，ms
-    uint16_t samplePeriodP1;
-    /// @brief P2级别的采样周期，ms
-    uint16_t samplePeriodP2;
-
     /// @brief 地址
     uint8_t address;
-    /// @brief 电压互感器
-    uint16_t pt;
-    /// @brief 电流互感器
-    uint16_t ct;
+    /// @brief 通道使能，bit0-3为通道0-3的使能，其他保留
+    uint8_t channelEna;
+
+    // /// @brief 探测周期，ms
+    // uint16_t detectionPeriod;
+    // /// @brief P0级别的采样周期，ms
+    // uint16_t samplePeriodP0;
+    // /// @brief P1级别的采样周期，ms
+    // uint16_t samplePeriodP1;
+    // /// @brief P2级别的采样周期，ms
+    // uint16_t samplePeriodP2;
+
+
+    // /// @brief 电压互感器
+    // uint16_t pt;
+    // /// @brief 电流互感器
+    // uint16_t ct;
 }coilConfig_t;
+
+typedef enum {
+    COIL_CHANNEL_ENABLE_0 = 1,
+    COIL_CHANNEL_ENABLE_1 = 2,
+    COIL_CHANNEL_ENABLE_2 = 4,
+    COIL_CHANNEL_ENABLE_3 = 8,
+}coilChannelEnable_t;
 
 /**
  * @brief 空调运行状态
@@ -41,6 +52,13 @@ typedef struct
     bool connected;
     /// @brief 是否已经准备好
     bool ready;
+
+    /// @brief 通道数据
+    uint32_t data[4];
+
+    /// @brief 错误码
+    uint32_t runStateMask;
+
 
     // /// @brief 运行时间,秒
     // uint32_t runTime;
