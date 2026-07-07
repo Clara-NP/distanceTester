@@ -30,6 +30,43 @@ typedef struct
     uint16_t ct;
 }coilConfig_t;
 
+/**
+ * @brief 空调运行状态
+ * 
+ * 
+ */
+typedef struct
+{
+    /// @brief 连接状态
+    bool connected;
+    /// @brief 是否已经准备好
+    bool ready;
+
+    // /// @brief 运行时间,秒
+    // uint32_t runTime;
+    // /// @brief 运行状态掩码,AC_RUN_STATE_MASK,P0
+    // uint32_t runStateMask;
+
+    // /// @brief 柜内温度，°C，P0
+    // float internalTemperature;
+    // /// @brief 柜外温度，°C，P0
+    // float temperature;
+    // /// @brief 柜外湿度，%，P0
+    // float humidity;
+    // /// @brief 蒸发器温度，°C，P2
+    // float evaporateTemperature;
+    // /// @brief 冷凝器温度，°C，P2
+    // float condensorTemperature;
+    // /// @brief 内风机转速，转/分钟，P2
+    // float internalFanSpeed;
+    // /// @brief 外风机转速，转/分钟，P2
+    // float externalFanSpeed;
+
+    // /// @brief 厂商相关状态码，P0
+    // uint32_t manufacturerState;
+
+}coilManageState_t;
+
 
 /**
  * @brief 创建一个磁感应线圈管理器
