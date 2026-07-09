@@ -26,4 +26,8 @@ QueueHandle_t sysEventRegister(sysEventNode_t nodeId, const char* name, void *us
 int sysEventPost(sysEventNode_t nodeId, int event, const void *data, int size);
 
 int sysEventPop(sysEventNode_t nodeId, void **user, int *event, void *data, int *size);
+
+
+typedef void (*eventHandle_t)(void *user, int event, int size, uint8_t *data);
+void eventQueueReceive(sysEventNode_t nodeId, eventHandle_t eventHandle);
 #endif

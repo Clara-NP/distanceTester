@@ -207,3 +207,13 @@ int sysEventPop(sysEventNode_t nodeId, void **user, int *event, void *data, int 
     dlog("Event Pop, module:%s event:%d dataSize:%d", m->name[nodeId], eventQueue.event, eventQueue.dataSize);
     return RET_SUCCESS;
 }
+
+void eventQueueReceive(sysEventNode_t nodeId, eventHandle_t eventHandle)
+{
+    uint8_t data[CONFIG_SYS_EVENT_DATA_MAX];
+    int size = 0, event;
+
+    while (sysEventPop(nodeId, NULL, &event, data, &size) == RET_SUCCESS) {
+        eventHandle(NULL, event, size, data);
+    }
+}

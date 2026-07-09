@@ -80,4 +80,6 @@ motorController_t *motorNew(uint8_t can, const char *name, const motorConfig_t *
  */
 void motorSchedule(motorController_t *motor);
 void motorSetConfig(motorController_t *motor, bool isChange, int speedLevel);
+int motorGetSpeedLevel(motorController_t *motor);
+bool motorGetEnable(motorController_t *motor);
 #endif /* __MOTOR_H__ */

@@ -63,10 +63,11 @@ struct displayManage
 static void lvglInit(void);
 static void lvglFlushCb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map);
 static uint32_t lvglTickCb(void);
-// static void lvglTask(void *arg);
-
 
 static displayManage_t *s_display = NULL;
+static lv_obj_t *lblStatus;
+static lv_obj_t *lblDirection;
+static lv_obj_t *lblSpeedLevel;
 
 displayManage_t *displayNew(uint8_t bus, const char *name, const lcdDisplayConfig_t *config)
 {
@@ -80,37 +81,12 @@ displayManage_t *displayNew(uint8_t bus, const char *name, const lcdDisplayConfi
     lcdDisplayInit(config);
     s_display = m;
 
-    /* 再启动 LVGL */
+    /* 启动 LVGL */
     lvglInit();
 
     return m;
 }
-lv_obj_t *lbl_secs;
-uint32_t last_sec = 0xFFFFFFFF;
-char buf[16];
-void displayManageSchedule(displayManage_t *display)
-{
-    // // 屏幕全红
-    // lcdDisplayFullScreen(display->config->id, 0xF800);
-    // mdelay(500);    
-    // // 屏幕全绿
-    // lcdDisplayFullScreen(display->config->id, 0x07E0);
-    // mdelay(500);
-    // // 屏幕全蓝
-    // lcdDisplayFullScreen(display->config->id, 0x001F);
-    // mdelay(500);
 
-    uint32_t sec = (uint32_t)(upTime()/1000);
-    if (sec != last_sec) {
-        last_sec = sec;
-        snprintf(buf, sizeof(buf), "%lu", (unsigned long)sec);
-        lv_label_set_text(lbl_secs, buf);
-    }
-
-    /* LVGL 主循环: 单线程驱动, 不需要锁 */
-    lv_timer_handler();
-    // vTaskDelay(pdMS_TO_TICKS(1000));
-}
 
 
 /* ===================== LVGL 集成 ===================== */
@@ -125,37 +101,34 @@ static void lvglInit(void)
     /* 3. 显示对象 */
     lv_display_t *disp = lv_display_create(DISP_HOR_RES, DISP_VER_RES);
     lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565);
-    lv_display_set_buffers(disp, s_buf1, s_buf2, sizeof(s_buf1),
-                           LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_buffers(disp, s_buf1, s_buf2, sizeof(s_buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(disp, lvglFlushCb);
-
-
 
     // test
     lv_obj_t *scr = lv_screen_active();
     lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
 
-    /* 标题: Hello World! */
-    lv_obj_t *lbl_hello = lv_label_create(scr);
-    lv_label_set_text(lbl_hello, "Hello World!");
-    lv_obj_set_style_text_color(lbl_hello, lv_color_hex(0xFFFF00), 0);
-    lv_obj_set_style_text_font(lbl_hello, &lv_font_montserrat_28, 0);
-    lv_obj_align(lbl_hello, LV_ALIGN_TOP_MID, 0, 50);
+    /* 状态 */
+    lblStatus = lv_label_create(scr);
+    lv_label_set_text(lblStatus, "STOP");
+    lv_obj_set_style_text_color(lblStatus, lv_color_hex(0xFFFF00), 0);
+    lv_obj_set_style_text_font(lblStatus, &lv_font_montserrat_40, 0);
+    lv_obj_align(lblStatus, LV_ALIGN_CENTER, 0, 10);
 
-    /* "Secs:" 标签 */
-    lv_obj_t *lbl_caption = lv_label_create(scr);
-    lv_label_set_text(lbl_caption, "Secs:");
-    lv_obj_set_style_text_color(lbl_caption, lv_color_hex(0x00FFFF), 0);
-    lv_obj_set_style_text_font(lbl_caption, &lv_font_montserrat_20, 0);
-    lv_obj_align(lbl_caption, LV_ALIGN_CENTER, 0, 30);
+    /* 方向 */
+    lblDirection = lv_label_create(scr);
+    lv_label_set_text(lblDirection, "  -             +  ");
+    lv_obj_set_style_text_color(lblDirection, lv_color_hex(0x00FFFF), 0);
+    lv_obj_set_style_text_font(lblDirection, &lv_font_montserrat_40, 0);
+    lv_obj_align(lblDirection, LV_ALIGN_CENTER, 0, 75);
 
-    /* 秒数数值 */
-    lbl_secs = lv_label_create(scr);
-    lv_obj_set_style_text_color(lbl_secs, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_set_style_text_font(lbl_secs, &lv_font_montserrat_40, 0);
-    lv_obj_align(lbl_secs, LV_ALIGN_CENTER, 0, 75);
-    lv_label_set_text(lbl_secs, "0");
+    /* 当前电机速度 */
+    lblSpeedLevel = lv_label_create(scr);
+    lv_obj_set_style_text_color(lblSpeedLevel, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(lblSpeedLevel, &lv_font_montserrat_40, 0);
+    lv_obj_align(lblSpeedLevel, LV_ALIGN_CENTER, 0, 75);
+    lv_label_set_text(lblSpeedLevel, "0");
 }
 
 
@@ -178,7 +151,6 @@ static void lvglFlushCb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_m
         px_map[i * 2 + 1] = t;
     }
     lcdDisplayBlit(s_display->config->id, area->x1, area->y1, w, h, px_map);
-    // st7789_draw_bitmap(area->x1, area->y1, w, h, px_map);
 
     /* 同步刷屏完成, 通知 LVGL */
     lv_display_flush_ready(disp);
@@ -190,4 +162,24 @@ static uint32_t lvglTickCb(void)
     /* esp_timer_get_time 返回 us, LVGL 需要 ms */
     /* uptime() 返回 ms */
     return (uint32_t)(upTime());
+}
+
+void displayManageSchedule(displayManage_t *display)
+{
+    /* LVGL 主循环: 单线程驱动, 不需要锁 */
+    lv_timer_handler();
+}
+
+
+void displaySetSpeedLevel(int speedLevel)
+{
+    // lv_label_set_text(lbl_secs, buf);
+    char buf[4];
+    snprintf(buf, sizeof(buf), "%d", speedLevel);
+    lv_label_set_text(lblSpeedLevel, buf);
+}
+
+void displaySetIsPressed(bool isPressed)
+{
+    lv_label_set_text(lblStatus, isPressed ? "START" : "STOP");
 }

@@ -15,13 +15,14 @@
 typedef enum {
     SYS_EVENT_NODE_MOTOR = 0,
     SYS_EVENT_NODE_ROTARY,
+    SYS_EVENT_NODE_BUS_DEVICE,
     SYS_EVENT_NODE_MAX,
 }sysEventNode_t;
 
 typedef enum {
     // MOTOR事件
     SYS_EVENT_MOTOR_ONLINE = 0,
-    
+    SYS_EVENT_MOTOR_MESSAGE,
     // ROTARY事件
     SYS_EVENT_ROTARY_MESSAGE = 100,
 
@@ -37,6 +38,13 @@ typedef struct {
     bool isPressed;
     int count;
 }rotaryEncoderEvent_t;
+
+
+typedef struct {
+    bool isPressed;
+    int speedLevel;
+}motorMessageEvent_t;
+
 
 
 #endif

@@ -297,11 +297,21 @@ void motorSetConfig(motorController_t *motor, bool isChange, int speedLevel)
 {
     if (isChange) {
         motor->enable = !motor->enable;
-        ilog("change motor enable: %d", motor->enable);
+        ilog("change motor enable: %d ", motor->enable);
     }
     if (speedLevel != motor->speedLevel) {
+        ilog("change motor speedLevel: %d -> %d", (motor->speedLevel), speedLevel);
         motor->speedLevel = speedLevel;
-        motor->outputCurrentSet = controlData[speedLevel];
-        ilog("change motor speedLevel: %d", (motor->speedLevel-10));
+        motor->outputCurrentSet = controlData[motor->speedLevel];
     }
+}
+
+int motorGetSpeedLevel(motorController_t *motor)
+{
+    return motor->speedLevel;
+}
+
+bool motorGetEnable(motorController_t *motor)
+{
+    return motor->enable;
 }

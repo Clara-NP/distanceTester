@@ -17,10 +17,6 @@
 
 #include <common/trace.h>
 
-
-
-
-
 /// @brief 编码器
 static const rotaryConfig_t s_rotaryConfigs[] = {
     { .id = ENCODER_ROTARY, .name = "rotary", .rotaryA = EM_GPIO_ROTARY_A, .rotaryB = EM_GPIO_ROTARY_B, .address = 1},
@@ -139,83 +135,28 @@ typedef struct
 
 }controlManage_t;
 
-
-// static const rotaryConfig_t s_rotaryConfig = 
-// {
-//     .rotaryA = EM_GPIO_ROTARY_A,
-//     .rotaryB = EM_GPIO_ROTARY_B,
-// };
-// ENCODER_ROTARY = 0,
-
-
-
-
-
 static controlManage_t s_controlManage = {0};
 #define getInstance()       &s_controlManage
 
-
-// #define powerSwitchIsPressed()          (m->ioModule.powerSwitch->polarity == IO_DEFAULT_LOW_ACTIVE) ?  !gpioGet(m->ioModule.powerSwitchId) : gpioGet(m->ioModule.powerSwitchId)
-
-
 static void controlManageTask(void *pvParameters);
 static bool keyDetection(uint8_t keyId);
-
-
 
 int controlManageInit(void)
 {
     int ret = RET_FAILED;
     controlManage_t *m = getInstance();
     osMemset(m, 0, sizeof(controlManage_t));
-
-
-    // m->ioModule.rotaryKeyManage = ioModuleNew(m->ioModule.rotaryKey, "key", false, 1);
-    // ASSERT(m->ioModule.rotaryKeyManage != NULL, "rotary key module new failed");
-
     m->ioModule.rotaryKey = EM_GPIO_ROTARY_KEY;
     // m->ioModule.rotaryA = EM_GPIO_ROTARY_A;
     // m->ioModule.rotaryB = EM_GPIO_ROTARY_B;
     // m->ioModule.rotaryKey = EM_GPIO_ROTARY_KEY;
-    // m->ioModule.rotaryKeyManage = ioModuleNew(m->ioModule.rotaryKey, "key", false, 1);
-    // ASSERT(m->ioModule.rotaryKeyManage != NULL, "rotary key module new failed");
 
-    // m->ioModule.rotaryController = rotaryNew(EM_GPIO_ROTARY_A, EM_GPIO_ROTARY_B, "rotary", &m->ioModule.rotaryConfig);
-    // ASSERT(m->ioModule.rotaryController != NULL, "rotary controller new failed");
-
-
-    // // 创建编码器节点
-    // for (int i = 0; i < ARRAY_SIZE(s_rotaryConfigs); i ++){
-    //     ret = rotaryEncoderNodeInit(&m->rotarys[i], &s_rotaryConfigs[i]);
-    //     ASSERT(ret == RET_SUCCESS, "Init rotary node failed");
-    // }
     ret = rotaryEncoderInit( NULL);
     ASSERT(ret == RET_SUCCESS, "rotary encoder init failed");
 
-
-    
     xTaskCreate(controlManageTask, "control-manage", 4096, NULL, CONFIG_CONTROL_MANAGE_TASK_PRIORITY, NULL);
-
     return RET_SUCCESS;
 }
-
-
-
-
-// static int rotaryEncoderNodeInit(rotaryEncoder_t *rotary, const rotaryConfig_t *config)
-// {
-//     osMemset(rotary, 0, sizeof(*rotary));
-//     rotary->node = rotaryNew(config->address);
-//     if (rotary->node == NULL) {
-//         return RET_NO_MEM;
-//     }
-
-//     rotary->config = config;
-    
-//     // 配置节点
-//     return rotaryEncoderInit(rotary->node);
-// }
-
 
 
 static void controlManageTask(void *pvParameters)
@@ -290,7 +231,7 @@ static bool keyDetection(uint8_t keyId)
         while (gpioGet(keyId) == 0) {
             vTaskDelay(5);
         }
-        ilog("rotaryKey pressed");
+        // ilog("rotaryKey pressed");
         return true;
     }
     return false;

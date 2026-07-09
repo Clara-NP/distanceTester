@@ -86,8 +86,8 @@ static motorManage_t s_motorManage = {0};
 #define getInstance()       &s_motorManage
 
 static void motorManageTask(void *pvParameters);
-static void eventQueueReceive(void);
 static void motorEventHandle(void *user, int event, int size, uint8_t *data);
+static void motorManageUpdateInfo(motorController_t *motor);
 
 int motorManageInit(void)
 {
@@ -120,7 +120,7 @@ static void motorManageTask(void *pvParameters)
     {
         vTaskDelay(10 / portTICK_PERIOD_MS);
         // 事件处理
-        eventQueueReceive();
+        eventQueueReceive(SYS_EVENT_NODE_MOTOR, motorEventHandle);
 
         // 等待系统起来 这里是在事件中处理的  暂时不使用
         // if(!m->systemReady) {
@@ -129,6 +129,10 @@ static void motorManageTask(void *pvParameters)
 
         // 电机调度
         motorSchedule(m->motor);
+
+        // 更新信息
+        motorManageUpdateInfo(m->motor);
+
 
         // // 状态刷新
         // stateUpdate();
@@ -145,39 +149,17 @@ static void motorManageTask(void *pvParameters)
     }
 }
 
-static void eventQueueReceive(void)
-{
-    motorManage_t *m = getInstance();
-    //void *user;
-    uint8_t data[CONFIG_SYS_EVENT_DATA_MAX];
-    int size = 0, event;
-
-    while (sysEventPop(SYS_EVENT_NODE_MOTOR, NULL, &event, data, &size) == RET_SUCCESS) {
-        motorEventHandle(NULL, event, size, data);
-    }
-}
 
 
 static void motorEventHandle(void *user, int event, int size, uint8_t *data)
 {
     motorManage_t *m = getInstance();
-    // ilog("motor manage event: %d, size: %d", event, size);
     switch (event) {
         case SYS_EVENT_ROTARY_MESSAGE:
             int speedLevel = 0;
             rotaryEncoderEvent_t *rotaryEvent = (rotaryEncoderEvent_t *)data;
-            // ilog("rotaryEvent: %p", rotaryEvent);
-            // ilog("rotaryEvent->isVaild: %d", rotaryEvent->isVaild);
-            // ilog("rotaryEvent->isPressed: %d", rotaryEvent->isPressed);
-            // ilog("rotaryEvent->count: %d", rotaryEvent->count);
-            // ilog("motor output current: %d", m->motorConfig.outputCurrentSet);
-            // ilog("rotaryEvent->count: %d", rotaryEvent->count);
-            if (rotaryEvent->isVaild) {
-                // if (rotaryEvent->isPressed) {
-                //     ilog("change motor enable");
-                //     m->motorConfig.enable = !m->motorConfig.enable;
-                // }
 
+            if (rotaryEvent->isVaild) {
                 speedLevel = rotaryEvent->count;
                 if (speedLevel > 50) {
                     speedLevel = 50;
@@ -187,14 +169,28 @@ static void motorEventHandle(void *user, int event, int size, uint8_t *data)
                 speedLevel = speedLevel / 5;
                 speedLevel = speedLevel + 10;
                 motorSetConfig(m->motor, rotaryEvent->isPressed, speedLevel);
-                // ilog("speedLevel: %d", speedLevel);
-                // if (m->motorConfig.outputCurrentSet != speedLevel) {
-                //     m->motorConfig.outputCurrentSet = speedLevel;
-                //     ilog("motor output current set: %d", m->motorConfig.outputCurrentSet);
-                // }
             }
             break;
         default:
             break;
+    }
+}
+
+
+static void motorManageUpdateInfo(motorController_t *motor)
+{
+    static int lastSpeedLevel = 0;
+    static bool lastIsPressed = false;
+    // motorManage_t *m = getInstance();
+    int speedLevel = motorGetSpeedLevel(motor);
+    bool isPressed = motorGetEnable(motor);
+
+    if (speedLevel != lastSpeedLevel || isPressed != lastIsPressed) {
+        lastSpeedLevel = speedLevel;
+        lastIsPressed = isPressed;
+        motorMessageEvent_t motorMessageEvent = {0};
+        motorMessageEvent.isPressed = isPressed;
+        motorMessageEvent.speedLevel = speedLevel-10;
+        sysEventPost(SYS_EVENT_NODE_BUS_DEVICE, SYS_EVENT_MOTOR_MESSAGE, &motorMessageEvent, sizeof(motorMessageEvent_t));
     }
 }

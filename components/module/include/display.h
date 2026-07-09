@@ -33,4 +33,6 @@ typedef struct
 
 displayManage_t *displayNew(uint8_t bus, const char *name, const lcdDisplayConfig_t *config);
 void displayManageSchedule(displayManage_t *display);
+void displaySetSpeedLevel(int speedLevel);
+void displaySetIsPressed(bool isPressed);
 #endif

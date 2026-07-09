@@ -8,6 +8,7 @@
 #include "config.h"
 #include "coil.h"
 #include "display.h"
+#include "sys_event.h"
 
 #define TRACE_TAG "bus-device-manage"
 #define TRACE_LEVEL T_INFO
@@ -125,8 +126,8 @@ typedef struct {
     /// @brief 系统时间
     uint64_t systemTime;
 
-    // /// @brief 事件队列
-    // QueueHandle_t event;
+    /// @brief 事件队列
+    QueueHandle_t event;
     // /// @brief 产测参数
     // factoryParameter_t factory;
 
@@ -158,6 +159,7 @@ static busDeviceManage_t s_busDeviceManage = {0};
 #define getInstance()       &s_busDeviceManage
 
 static void busDeviceManageTask(void *pvParameters);
+static void busDeviceEventHandle(void *user, int event, int size, uint8_t *data);
 
 /**
  * @brief RS485总线设备管理任务初始化
@@ -184,6 +186,9 @@ int busDeviceManageInit(void)
                 break;
         }
     }
+    // 注册消息队列
+    m->event = sysEventRegister(SYS_EVENT_NODE_BUS_DEVICE, "bus_device", m);
+    ASSERT(m->event != NULL, "sys event register failed");
 
     xTaskCreate(busDeviceManageTask, "busDeviceManageTask", 4096, NULL, CONFIG_BUS_DEVICE_TASK_PRIORITY, NULL);
     return RET_SUCCESS;
@@ -199,6 +204,9 @@ static void busDeviceManageTask(void *pvParameters)
     while (1) {
         vTaskDelay(1000 / portTICK_PERIOD_MS);
 
+        // 事件处理
+        eventQueueReceive(SYS_EVENT_NODE_BUS_DEVICE, busDeviceEventHandle);
+
         for (int i = 0; i < ARRAY_SIZE(m->device); i++) {
             device = &m->device[i];
             switch (device->info->type) {
@@ -213,5 +221,21 @@ static void busDeviceManageTask(void *pvParameters)
             }
         }
 
+    }
+}
+
+static void busDeviceEventHandle(void *user, int event, int size, uint8_t *data)
+{
+    busDeviceManage_t *m = getInstance();
+    // ilog("bus device manage event: %d, size: %d", event, size);
+    switch (event) {
+        case SYS_EVENT_MOTOR_MESSAGE:
+            motorMessageEvent_t *motorMessageEvent = (motorMessageEvent_t *)data;
+            ilog("bus device isPressed: %d, speedLevel: %d", motorMessageEvent->isPressed, motorMessageEvent->speedLevel);
+            displaySetSpeedLevel(motorMessageEvent->speedLevel);
+            displaySetIsPressed(motorMessageEvent->isPressed);
+            break;
+        default:
+            break;
     }
 }
