@@ -5,6 +5,7 @@
 #include "esp_log.h"
 
 #include "driver/gpio.h"
+#include "driver/uart.h"
 #define TRACE_TAG "board"
 #define TRACE_LEVEL T_DEBUG
 #define TRACE_ENABLE
@@ -14,7 +15,7 @@
 
 void boardInit(void)
 {
-    // ilog("Board: %s", BOARD_NAME);
+    ilog("Board: %s", BOARD_NAME);
     // 初始化GPIO
     gpioInit(s_gpios, ARRAY_SIZE(s_gpios));
     // 初始化IIC
@@ -24,6 +25,6 @@ void boardInit(void)
     // 初始化can
     // 这里要注意下，如果can初始化放在串口后面会导致申请中断资源失败，待排查
     canInit(s_cans, ARRAY_SIZE(s_cans));
-    // // 初始化串口
-    // serialInit(s_serials, ARRAY_SIZE(s_serials));
+    // 初始化串口
+    serialInit(s_serials, ARRAY_SIZE(s_serials));
 }
