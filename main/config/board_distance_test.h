@@ -4,7 +4,7 @@
 #include "can/can.h"
 #include "export_ids.h"
 #include "i2c/i2c.h"
-
+#include "spi/spi.h"
 
 /**
  * @brief 定义使用的GPIO
@@ -16,6 +16,9 @@ static const gpioConfig_t s_gpios[] =
     { EM_GPIO_ROTARY_A,         GPIO_CHIP_SOC, _GPIO33, GPIO_DIR_OUTPUT, 0},
     { EM_GPIO_ROTARY_B,         GPIO_CHIP_SOC, _GPIO26, GPIO_DIR_OUTPUT, 0},
     { EM_GPIO_ROTARY_KEY,       GPIO_CHIP_SOC, _GPIO21, GPIO_DIR_INPUT, 0},
+    { EM_GPIO_LCD_DC,           GPIO_CHIP_SOC, _GPIO41, GPIO_DIR_OUTPUT, 0},
+    { EM_GPIO_LCD_RST,          GPIO_CHIP_SOC, _GPIO42, GPIO_DIR_OUTPUT, 0},
+    // { EM_GPIO_LCD_BL,           GPIO_CHIP_SOC, _GPIO34, GPIO_DIR_OUTPUT, GPIO_FLAG_INIT_ACTIVE | GPIO_FLAG_ACTIVE_LOW},
 };
 
  /**
@@ -73,4 +76,13 @@ static const canConfig_t s_cans[] =
 static const i2cConfig_t s_i2cs[] =
 {
     {.id = EM_I2C_1, .chip = I2C_CHIP_SOC, .port = _I2C1, .rate = 100000, .chipParameter = "scl:18,sda:17"}
+};
+
+/**
+ * @brief 定义使用的SPI
+ * 
+ */
+static const spiConfig_t s_spis[] =
+{
+    {.id = EM_SPI_1, .chip = SPI_CHIP_SOC, .port = _SPI1, .rate = 10000000, .chipParameter = "miso:-1,mosi:35,clk:36,cs:-1,mode:3"}
 };

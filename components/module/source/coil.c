@@ -240,7 +240,7 @@ static int ldc1614ReadRegister16(coilManage_t *coil, uint8_t reg, uint16_t *data
     int ret = 0;
     ret = i2cReadByteData(coil->bus, coil->config->address, reg, readBuffer, 2);
     if (ret != RET_SUCCESS) {
-        elog("read register[0x%02X] failed", reg);
+        // elog("read register[0x%02X] failed", reg);
         return RET_FAILED;
     }
     *data = (readBuffer[0] << 8) | readBuffer[1];

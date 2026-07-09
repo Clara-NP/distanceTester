@@ -13,6 +13,9 @@ enum EXPORT_GPIO
     EM_GPIO_ROTARY_A,
     EM_GPIO_ROTARY_B,
     EM_GPIO_ROTARY_KEY,
+    EM_GPIO_LCD_DC,
+    EM_GPIO_LCD_RST,
+    EM_GPIO_LCD_BL,
     EXPORT_GPIO_MAX_NUM,
 };
 /**
@@ -53,7 +56,7 @@ enum EXPORT_CAN
 };
 
 /**
- * @brief 其他定义
+ * @brief I2C定义
  * 
  */
 enum EXPORT_I2C
@@ -69,6 +72,17 @@ enum EXPORT_ENCODER
     ENCODER_ROTARY = 0,
 
     EXPORT_ENCODER_MAX_NUM
+};
+
+/**
+ * @brief SPI定义
+ * 
+ */
+enum EXPORT_SPI
+{
+    EM_SPI_1,
+
+    EXPORT_SPI_MAX_NUM,
 };
 
 

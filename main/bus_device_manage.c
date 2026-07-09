@@ -7,6 +7,7 @@
 #include "export_ids.h"
 #include "config.h"
 #include "coil.h"
+#include "display.h"
 
 #define TRACE_TAG "bus-device-manage"
 #define TRACE_LEVEL T_INFO
@@ -22,6 +23,8 @@ enum BUS_DEVICE_TYPE
 {
     /// @brief 磁感应线圈
     BUS_DEVICE_TYPE_COIL,
+    /// @brief 液晶屏
+    BUS_DEVICE_TYPE_DISPLAY,
 
     BUS_DEVICE_TYPE_ALL,
 };
@@ -51,6 +54,20 @@ static coilConfig_t coilConfig = {
     // .ct = 1000,
 };
 
+static const lcdDisplayConfig_t displayConfig = {
+    .id = 0,
+    .bus = EM_SPI_1,
+    .dc = EM_GPIO_LCD_DC,
+    .cs = -1,
+    .rst = EM_GPIO_LCD_RST,
+    .backlight = EM_GPIO_LCD_BL,
+    .driver = LCD_DRIVER_TYPE_ST7789,
+    .columns = 240,
+    .rows = 240,
+    .polarityReversal = 0,
+};
+
+
 /**
  * @brief bus总线设备
  * 
@@ -58,6 +75,8 @@ static coilConfig_t coilConfig = {
 static busDevicesInfo_t busDevicesInfo[] = {
     // 磁感应线圈
     {BUS_DEVICE_TYPE_COIL, "magnetic induction coil",   &coilConfig},
+    /// 液晶屏
+    {BUS_DEVICE_TYPE_DISPLAY, "display",   &displayConfig},
 };
 
 /**
@@ -157,6 +176,10 @@ int busDeviceManageInit(void)
             case BUS_DEVICE_TYPE_COIL:
                 m->device[i].bus = coilManageNew(EM_I2C_1, busDevicesInfo[i].name, busDevicesInfo[i].config);
                 break;
+            case BUS_DEVICE_TYPE_DISPLAY:
+                ilog("device type = %d", BUS_DEVICE_TYPE_DISPLAY);
+                m->device[i].bus = displayNew(EM_SPI_1, busDevicesInfo[i].name, busDevicesInfo[i].config);
+                break;
             default:
                 break;
         }
@@ -164,9 +187,6 @@ int busDeviceManageInit(void)
 
     xTaskCreate(busDeviceManageTask, "busDeviceManageTask", 4096, NULL, CONFIG_BUS_DEVICE_TASK_PRIORITY, NULL);
     return RET_SUCCESS;
-
-
-
 }
 
 static void busDeviceManageTask(void *pvParameters)
@@ -181,15 +201,16 @@ static void busDeviceManageTask(void *pvParameters)
 
         for (int i = 0; i < ARRAY_SIZE(m->device); i++) {
             device = &m->device[i];
-            // switch (device->info->type) {
-            //     case BUS_DEVICE_TYPE_COIL:
-            //         coilManageSchedule(device->bus);
-            //         break;
-            //     default:
-            //         break;
-            // }
-
-            coilManageSchedule(device->bus);
+            switch (device->info->type) {
+                case BUS_DEVICE_TYPE_COIL:
+                    coilManageSchedule(device->bus);
+                    break;
+                case BUS_DEVICE_TYPE_DISPLAY:
+                    displayManageSchedule(device->bus);
+                    break;
+                default:
+                    break;
+            }
         }
 
     }

@@ -1,0 +1,193 @@
+#include "common/generic.h"
+#include "display.h"
+#include "esp_err.h"
+// #include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "lcd/lcd_display.h"
+
+#include "lvgl.h"
+
+#define TRACE_TAG "display"
+#define TRACE_LEVEL T_INFO
+#define TRACE_ENABLE
+
+#include <common/trace.h>
+
+#ifndef CONFIG_LVGL_TASK_STACK_SIZE
+#define CONFIG_LVGL_TASK_STACK_SIZE 4096
+#endif
+
+#ifndef CONFIG_LVGL_TASK_PRIORITY
+#define CONFIG_LVGL_TASK_PRIORITY 5
+#endif
+
+#define DISP_HOR_RES    240
+#define DISP_VER_RES    240
+#define DRAW_BUF_LINES      40   
+/* 单显示缓冲大小(像素数), 取 1/6 屏幕左右, 双 buffer 让 LVGL 可并行绘制 */
+#define DISP_BUF_PIXELS (DISP_HOR_RES * 40)
+/* 双缓冲, partial 模式; 每个 240*40*2 = 19200 字节 */
+static uint8_t s_buf1[DISP_HOR_RES * DRAW_BUF_LINES * 2];
+static uint8_t s_buf2[DISP_HOR_RES * DRAW_BUF_LINES * 2];
+
+struct displayManage
+{
+    /// 逻辑ID
+    //uint8_t id;
+    /// UART ID
+    uint8_t bus;
+    /// 超时计数
+    uint8_t timeoutCount;
+    // /// 空调类型
+    // uint8_t type;
+    // /// 协议是否已经确认
+    // uint8_t typeConfirm;
+    /// 配置
+    const lcdDisplayConfig_t *config;
+    /// 状态
+    // coilManageState_t state;
+    // /// 空调信息
+    // acManageInfo_t info;
+
+    // /// 下次探测时间
+    // sysTick_t expiredDetection;
+    // /// 离线时间
+    // sysTick_t expiredOffline;
+    // /// 一次性读出25个寄存器的数据，所以这里只取p0优先级
+    // sysTick_t expiredP0;
+    // /// 运行时间1秒超时
+    // sysTick_t expiredSecond;
+};
+/* ===================== 前置声明 ===================== */
+static void lvglInit(void);
+static void lvglFlushCb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map);
+static uint32_t lvglTickCb(void);
+// static void lvglTask(void *arg);
+
+
+static displayManage_t *s_display = NULL;
+
+displayManage_t *displayNew(uint8_t bus, const char *name, const lcdDisplayConfig_t *config)
+{
+    displayManage_t *m = osMalloc(sizeof(displayManage_t));
+    osMemset(m, 0, sizeof(displayManage_t));
+    m->bus = bus;
+    // m->name = name;
+    m->config = config;
+
+    /* 先初始化底层 ST7789 */
+    lcdDisplayInit(config);
+    s_display = m;
+
+    /* 再启动 LVGL */
+    lvglInit();
+
+    return m;
+}
+lv_obj_t *lbl_secs;
+uint32_t last_sec = 0xFFFFFFFF;
+char buf[16];
+void displayManageSchedule(displayManage_t *display)
+{
+    // // 屏幕全红
+    // lcdDisplayFullScreen(display->config->id, 0xF800);
+    // mdelay(500);    
+    // // 屏幕全绿
+    // lcdDisplayFullScreen(display->config->id, 0x07E0);
+    // mdelay(500);
+    // // 屏幕全蓝
+    // lcdDisplayFullScreen(display->config->id, 0x001F);
+    // mdelay(500);
+
+    uint32_t sec = (uint32_t)(upTime()/1000);
+    if (sec != last_sec) {
+        last_sec = sec;
+        snprintf(buf, sizeof(buf), "%lu", (unsigned long)sec);
+        lv_label_set_text(lbl_secs, buf);
+    }
+
+    /* LVGL 主循环: 单线程驱动, 不需要锁 */
+    lv_timer_handler();
+    // vTaskDelay(pdMS_TO_TICKS(1000));
+}
+
+
+/* ===================== LVGL 集成 ===================== */
+static void lvglInit(void)
+{
+    /* 1. LVGL 核心 */
+    lv_init();
+
+    /* 2. tick: 直接复用 esp_timer 高精度时钟, 无需额外定时器任务 */
+    lv_tick_set_cb(lvglTickCb);
+
+    /* 3. 显示对象 */
+    lv_display_t *disp = lv_display_create(DISP_HOR_RES, DISP_VER_RES);
+    lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565);
+    lv_display_set_buffers(disp, s_buf1, s_buf2, sizeof(s_buf1),
+                           LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_flush_cb(disp, lvglFlushCb);
+
+
+
+    // test
+    lv_obj_t *scr = lv_screen_active();
+    lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+
+    /* 标题: Hello World! */
+    lv_obj_t *lbl_hello = lv_label_create(scr);
+    lv_label_set_text(lbl_hello, "Hello World!");
+    lv_obj_set_style_text_color(lbl_hello, lv_color_hex(0xFFFF00), 0);
+    lv_obj_set_style_text_font(lbl_hello, &lv_font_montserrat_28, 0);
+    lv_obj_align(lbl_hello, LV_ALIGN_TOP_MID, 0, 50);
+
+    /* "Secs:" 标签 */
+    lv_obj_t *lbl_caption = lv_label_create(scr);
+    lv_label_set_text(lbl_caption, "Secs:");
+    lv_obj_set_style_text_color(lbl_caption, lv_color_hex(0x00FFFF), 0);
+    lv_obj_set_style_text_font(lbl_caption, &lv_font_montserrat_20, 0);
+    lv_obj_align(lbl_caption, LV_ALIGN_CENTER, 0, 30);
+
+    /* 秒数数值 */
+    lbl_secs = lv_label_create(scr);
+    lv_obj_set_style_text_color(lbl_secs, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(lbl_secs, &lv_font_montserrat_40, 0);
+    lv_obj_align(lbl_secs, LV_ALIGN_CENTER, 0, 75);
+    lv_label_set_text(lbl_secs, "0");
+}
+
+
+static void lvglFlushCb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
+{
+    int w = area->x2 - area->x1 + 1;
+    int h = area->y2 - area->y1 + 1;
+    if (w <= 0 || h <= 0) {
+        lv_display_flush_ready(disp);
+        return;
+    }
+
+    /* LVGL 的 RGB565 在内存里是小端(低字节在前), 而 ST7789 要高字节在前,
+       在此原地交换字节后再下发。缓冲在 flush_ready 后会被 LVGL 复用,
+       原地修改是安全的。 */
+    uint32_t n = (uint32_t)w * h;
+    for (uint32_t i = 0; i < n; ++i) {
+        uint8_t t = px_map[i * 2 + 0];
+        px_map[i * 2 + 0] = px_map[i * 2 + 1];
+        px_map[i * 2 + 1] = t;
+    }
+    lcdDisplayBlit(s_display->config->id, area->x1, area->y1, w, h, px_map);
+    // st7789_draw_bitmap(area->x1, area->y1, w, h, px_map);
+
+    /* 同步刷屏完成, 通知 LVGL */
+    lv_display_flush_ready(disp);
+}
+
+
+static uint32_t lvglTickCb(void)
+{
+    /* esp_timer_get_time 返回 us, LVGL 需要 ms */
+    /* uptime() 返回 ms */
+    return (uint32_t)(upTime());
+}
