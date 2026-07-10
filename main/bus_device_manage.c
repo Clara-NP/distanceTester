@@ -9,6 +9,7 @@
 #include "coil.h"
 #include "display.h"
 #include "sys_event.h"
+#include "monitor.h"
 
 #define TRACE_TAG "bus-device-manage"
 #define TRACE_LEVEL T_INFO
@@ -51,8 +52,6 @@ static coilConfig_t coilConfig = {
     // .samplePeriodP0 = 100,
     // .samplePeriodP1 = 200,
     // .samplePeriodP2 = 300,
-    // .pt = 1000,
-    // .ct = 1000,
 };
 
 static const lcdDisplayConfig_t displayConfig = {
@@ -103,14 +102,6 @@ typedef struct {
 
     /// @brief bus实例
     void *bus;
-
-    // /// cjson对象管理
-    // busDeviceInfoCjsonMsg_t deviceInfoMsg;
-    // busDeviceStateCjsonMsg_t deviceStateMsg;
-
-    // /// 同步参数管理
-    // syncManage_t syncManage;
-
 }busDevices_t;
 
 /**
@@ -120,39 +111,14 @@ typedef struct {
 typedef struct {
     // /// @brief 系统是否准备好
     // bool systemReady;
-    // /// @brief 是否已连接到mqtt服务器
-    // bool mqttConnected;
-
     /// @brief 系统时间
     uint64_t systemTime;
-
     /// @brief 事件队列
     QueueHandle_t event;
-    // /// @brief 产测参数
-    // factoryParameter_t factory;
-
-    // /// @brief mqtt客户端
-    // mqttClientInstance_t *mqttClient;
-
-    // /// @brief web服务器
-    // webServiceInstance_t *webService;
-
+    /// @brief 数据监控实例
+    dataMonitorInstance_t *monitor;
     /// @brief 设备参数管理
     busDevices_t device[ARRAY_SIZE(busDevicesInfo)];
-
-// #ifdef CONFIG_CONSOLE
-//     struct
-//     {
-//         /// @brief 是否为打印info
-//         uint8_t traceInfo;
-//         /// @brief 控制台打印类型
-//         uint8_t traceType;
-//         /// @brief 控制台定时器
-//         loopTimer_t traceTimer;
-//     }console;
-
-// #endif
-
 } busDeviceManage_t;
 
 static busDeviceManage_t s_busDeviceManage = {0};
@@ -160,7 +126,7 @@ static busDeviceManage_t s_busDeviceManage = {0};
 
 static void busDeviceManageTask(void *pvParameters);
 static void busDeviceEventHandle(void *user, int event, int size, uint8_t *data);
-
+static void busDeviceUpdateInfo(void);
 /**
  * @brief RS485总线设备管理任务初始化
  * 
@@ -190,6 +156,9 @@ int busDeviceManageInit(void)
     m->event = sysEventRegister(SYS_EVENT_NODE_BUS_DEVICE, "bus_device", m);
     ASSERT(m->event != NULL, "sys event register failed");
 
+    m->monitor = dataMonitorNew("bus_device");
+    ASSERT(m->monitor != NULL, "data monitor new failed");
+
     xTaskCreate(busDeviceManageTask, "busDeviceManageTask", 4096, NULL, CONFIG_BUS_DEVICE_TASK_PRIORITY, NULL);
     return RET_SUCCESS;
 }
@@ -202,7 +171,7 @@ static void busDeviceManageTask(void *pvParameters)
     ilog("bus device manage task start...");
 
     while (1) {
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(20 / portTICK_PERIOD_MS);
 
         // 事件处理
         eventQueueReceive(SYS_EVENT_NODE_BUS_DEVICE, busDeviceEventHandle);
@@ -220,7 +189,7 @@ static void busDeviceManageTask(void *pvParameters)
                     break;
             }
         }
-
+        busDeviceUpdateInfo();
     }
 }
 
@@ -237,5 +206,21 @@ static void busDeviceEventHandle(void *user, int event, int size, uint8_t *data)
             break;
         default:
             break;
+    }
+}
+
+static void busDeviceUpdateInfo(void)
+{
+    busDeviceManage_t *m = getInstance();
+    for (int i = 0; i < ARRAY_SIZE(m->device); i++) {
+        busDevices_t *device = &m->device[i];
+        switch (device->info->type) {
+            case BUS_DEVICE_TYPE_COIL:
+                coilManageState_t *coilState = getCoilState(device->bus);
+                if (coilState) {
+                    dataMonitorSetCoilState(m->monitor, coilState, 20);
+                }
+            break;
+        }
     }
 }

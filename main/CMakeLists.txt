@@ -4,6 +4,7 @@ list(APPEND srcs motor_manage.c)
 list(APPEND srcs control_manage.c)
 list(APPEND srcs sys_event.c)
 list(APPEND srcs bus_device_manage.c)
+list(APPEND srcs monitor.c)
 
 
 

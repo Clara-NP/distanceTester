@@ -26,12 +26,6 @@ typedef struct
     // uint16_t samplePeriodP1;
     // /// @brief P2级别的采样周期，ms
     // uint16_t samplePeriodP2;
-
-
-    // /// @brief 电压互感器
-    // uint16_t pt;
-    // /// @brief 电流互感器
-    // uint16_t ct;
 }coilConfig_t;
 
 typedef enum {
@@ -52,37 +46,16 @@ typedef struct
     bool connected;
     /// @brief 是否已经准备好
     bool ready;
-
     /// @brief 通道数据
     uint32_t data[4];
-
+    /// @brief 通道数据更新时间
+    sysTick_t updateTime;
+    /// @brief 运行时间,秒
+    uint32_t runTime;
     /// @brief 错误码
     uint32_t runStateMask;
-
-
-    // /// @brief 运行时间,秒
-    // uint32_t runTime;
-    // /// @brief 运行状态掩码,AC_RUN_STATE_MASK,P0
-    // uint32_t runStateMask;
-
-    // /// @brief 柜内温度，°C，P0
-    // float internalTemperature;
-    // /// @brief 柜外温度，°C，P0
-    // float temperature;
-    // /// @brief 柜外湿度，%，P0
-    // float humidity;
-    // /// @brief 蒸发器温度，°C，P2
-    // float evaporateTemperature;
-    // /// @brief 冷凝器温度，°C，P2
-    // float condensorTemperature;
-    // /// @brief 内风机转速，转/分钟，P2
-    // float internalFanSpeed;
-    // /// @brief 外风机转速，转/分钟，P2
-    // float externalFanSpeed;
-
     // /// @brief 厂商相关状态码，P0
     // uint32_t manufacturerState;
-
 }coilManageState_t;
 
 
@@ -102,5 +75,13 @@ coilManage_t *coilManageNew(uint8_t bus, const char *name, const coilConfig_t *c
  * @param coil 
  */
 void coilManageSchedule(coilManage_t *coil);
+
+/**
+ * @brief 获取磁感应线圈运行状态
+ * 
+ * @param coil 
+ * @return const coilManageState_t* 
+ */
+const coilManageState_t *getCoilState(coilManage_t *coil);
 
 #endif // __COIL_H__

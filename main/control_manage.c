@@ -178,7 +178,7 @@ static void controlManageTask(void *pvParameters)
         if (keyPressed) {
             rotaryEventMsg.isVaild = true;
             rotaryEventMsg.isPressed = true;
-            ilog("rotaryKey pressed");
+            // ilog("rotaryKey pressed");
             // 向电机控制发送命令
         }
         count = rotaryEncoderRead(NULL);

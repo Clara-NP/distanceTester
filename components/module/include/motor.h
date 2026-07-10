@@ -32,17 +32,7 @@ typedef struct
     /// @brief P2级别的采样周期，ms
     uint16_t samplePeriodP2;
 
-    // /// @brief 输出电压
-    // float outputVoltage;
-    // /// @brief 输出电流
-    // float outputCurrent;
-    // /// @brief 输出保护电压
-    // //float outputProtectVoltage;
-    // /// @brief 输出保护电流
-    // //float outputProtectCurrent;
-
-    int outputCurrentSet;
-    bool enable;
+    // bool enable;
 }motorConfig_t;
 
 
@@ -61,6 +51,10 @@ typedef struct
     /// @brief 厂商相关状态码，P0
     uint32_t manufacturerState;
 
+    /// @brief DJI反馈的真实转速
+    int16_t actualSpeed;
+    /// @brief 真实转速更新时间
+    sysTick_t actualSpeedUpdateTime;
 }motorState_t;
 
 /**
@@ -82,4 +76,5 @@ void motorSchedule(motorController_t *motor);
 void motorSetConfig(motorController_t *motor, bool isChange, int speedLevel);
 int motorGetSpeedLevel(motorController_t *motor);
 bool motorGetEnable(motorController_t *motor);
+const motorState_t *getMotorState(motorController_t *motor);
 #endif /* __MOTOR_H__ */

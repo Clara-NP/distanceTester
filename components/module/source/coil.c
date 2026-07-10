@@ -7,7 +7,7 @@
 #include "coil.h"
 
 #define TRACE_TAG "coil-manage"
-#define TRACE_LEVEL T_DEBUG
+#define TRACE_LEVEL T_INFO
 #define TRACE_ENABLE
 
 #include <common/trace.h>
@@ -129,16 +129,12 @@ struct coilManage
     uint8_t bus;
     /// 超时计数
     uint8_t timeoutCount;
-    // /// 空调类型
-    // uint8_t type;
-    // /// 协议是否已经确认
-    // uint8_t typeConfirm;
-    /// 配置
+    /// 配置 (bus/address/channelEna/采样周期/...) const类型
     const coilConfig_t *config;
-    /// 状态
+    /// 状态 (连接状态/是否准备好/通道数据/数据更新时间/运行时间/错误码) 用于外部获取数据
     coilManageState_t state;
-    // /// 空调信息
-    // acManageInfo_t info;
+    // /// 磁感应线圈信息   硬件相关(软硬件型号/厂商/序列号...) 暂时不需要
+    // coilManageInfo_t info;
 
     // /// 下次探测时间
     // sysTick_t expiredDetection;
@@ -149,8 +145,8 @@ struct coilManage
     // /// 运行时间1秒超时
     // sysTick_t expiredSecond;
 
-    // /// @brief 运行配置
-    // acRunConfig_t runConfig;
+    // /// @brief 磁感应线圈运行配置   运行时的配置信息 已在初始化中设置 不需要
+    // coilRunConfig_t runConfig;
 };
 
 static int ldc1614Config(coilManage_t *coil);
@@ -281,6 +277,7 @@ static int ldc1614ReadChannelData(coilManage_t *coil, uint8_t channel)
     }
 
     coil->state.data[channel] = ((uint32_t)(dataMsb & 0x0FFF) << 16) | dataLsb;
+    coil->state.updateTime = upTime();
     dlog("channle[%d] data: 0x%08X (%u)", channel, (unsigned int)coil->state.data[channel], (unsigned int)coil->state.data[channel]);
     return RET_SUCCESS;
 }
@@ -394,4 +391,12 @@ void coilManageSchedule(coilManage_t *coil)
         coil->state.ready = false;
         coil->timeoutCount = 0;
     }
+}
+
+const coilManageState_t *getCoilState(coilManage_t *coil)
+{
+    if (!coil) {
+        return NULL;
+    }
+    return &coil->state;
 }

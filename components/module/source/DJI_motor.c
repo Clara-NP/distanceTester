@@ -3,7 +3,7 @@
 #include "motor.h"
 
 #define TRACE_TAG "DJI-motor"
-#define TRACE_LEVEL T_DEBUG
+#define TRACE_LEVEL T_INFO
 #define TRACE_ENABLE
 
 #include <common/trace.h>
@@ -59,22 +59,18 @@ struct motorController
     uint8_t address;
     // /// 配置
     // const powerConfig_t *config;
-
-    /// CAN总线是否忙
-    /// 这里采用一问一答方式，执行读取/设置/控制命令必须保证总线是否为空闲状态
-    // uint8_t busBusy;
     /// 超时计数
     uint8_t timeoutCount;
 
-    /// 电流是否配置完成（华为电源每次打开，都要设置输出电流，并且只有在电压有输出的情况下设置输出电流才有效）
-    uint8_t outputCurrentReady;
-    /// 设置(输出电流)尝试次数
-    uint8_t setConfigAttempts;
+    // /// 电流是否配置完成（华为电源每次打开，都要设置输出电流，并且只有在电压有输出的情况下设置输出电流才有效）
+    // uint8_t outputCurrentReady;
+    // /// 设置(输出电流)尝试次数
+    // uint8_t setConfigAttempts;
 
     /// 接收缓存
     receiveFrame_t receive[CONFIG_POWER_RECEIVE_BUFFER_ITEM_SIZE];
 
-    // /// power信息
+    // /// power信息 硬件相关(软硬件型号/厂商/序列号...) 暂时不需要
     // powerInfo_t info;
     /// motor状态
     motorState_t state;
@@ -110,12 +106,10 @@ struct motorController
     bool enable;
     // 设置的电流数据
     int outputCurrentSet;
-
 };
 
 
-const int controlData[21] = {-10000, -9000, -8000, -7000, -6000, -5000, -4000, -3000, -2000, -1000, 
-                            0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000};
+const int controlData[11] = {0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000};
 
 #define RESET_EXPIRED_TIME(_command, _time)     _command = upTime() + (_time)
 static void __loopReceive(motorController_t *motor);
@@ -166,9 +160,6 @@ motorController_t *motorNew(uint8_t can, const char *name, const motorConfig_t *
     // m->config = config;
     // osMemcpy(m->info.name, name, strlen(name));
     // osMemcpy(m->info.manufacturer, "DJI", strlen("DJI"));
-    // 输出电压、输出电流设置
-    // m->outputCurrentSet = config->outputCurrent;
-    // m->outputVoltageSet = config->outputVoltage;
 
     // 重置各种时间参数
     RESET_EXPIRED_TIME(m->processTimer, CONFIG_MOTOR_PROCESS_TIME);
@@ -208,7 +199,7 @@ void motorSchedule(motorController_t *motor)
     __loopReceive(motor);
 
     connected = motor->state.connected;
-    if (!connected || !motor->enable) {
+    if (!connected) {
         return;
     }
 
@@ -216,6 +207,10 @@ void motorSchedule(motorController_t *motor)
     if (upTimeAfter(now, motor->processTimer)) {
         __processData(motor);
         motor->processTimer = upTime() + CONFIG_MOTOR_PROCESS_TIME;
+    }
+
+    if (!motor->enable) {
+        return;
     }
 
     // 数据发送
@@ -279,6 +274,8 @@ static void __processData(motorController_t *motor)
     }
 
     // 解析receive数据
+    motor->state.actualSpeed = (int16_t)(((uint16_t)receive->frame.speedH << 8) | receive->frame.speedL);
+    motor->state.actualSpeedUpdateTime = upTime();
     receive->valid = false;
     // dlog("processData: canId=%d", receive->canId);
 }
@@ -295,15 +292,19 @@ static void __sendData(motorController_t *motor)
 
 void motorSetConfig(motorController_t *motor, bool isChange, int speedLevel)
 {
+    dlog("receive data: isChange=%d, speedLevel=%d", isChange, speedLevel);
+    dlog("current data: enable=%d, speedLevel=%d, outputCurrentSet=%d", motor->enable, motor->speedLevel, motor->outputCurrentSet);
     if (isChange) {
         motor->enable = !motor->enable;
-        ilog("change motor enable: %d ", motor->enable);
+        if (!motor->enable) {
+            motor->speedLevel = 0;
+        }
     }
-    if (speedLevel != motor->speedLevel) {
-        ilog("change motor speedLevel: %d -> %d", (motor->speedLevel), speedLevel);
+    if (motor->enable && speedLevel != motor->speedLevel) {
         motor->speedLevel = speedLevel;
-        motor->outputCurrentSet = controlData[motor->speedLevel];
     }
+    motor->outputCurrentSet = speedLevel >= 0 ?controlData[motor->speedLevel]: -1*controlData[-1*motor->speedLevel];
+    dlog("set data: enable=%d, speedLevel=%d, outputCurrentSet=%d", motor->enable, motor->speedLevel, motor->outputCurrentSet);
 }
 
 int motorGetSpeedLevel(motorController_t *motor)
@@ -314,4 +315,13 @@ int motorGetSpeedLevel(motorController_t *motor)
 bool motorGetEnable(motorController_t *motor)
 {
     return motor->enable;
+}
+
+
+const motorState_t *getMotorState(motorController_t *motor)
+{
+    if (!motor) {
+        return NULL;
+    }
+    return &motor->state;
 }

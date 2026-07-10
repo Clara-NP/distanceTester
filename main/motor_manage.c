@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -8,6 +7,7 @@
 #include "motor_manage.h"
 #include "motor.h"
 #include "sys_event.h"
+#include "monitor.h"
 
 #define TRACE_TAG "motor-manage"
 #define TRACE_LEVEL T_INFO
@@ -53,18 +53,11 @@ typedef struct
     /// @brief 电源运行配置
     motorConfig_t motorConfig;
 
-    // /// @brief mqtt客户端
-    // mqttClientInstance_t *mqttClient;
-
     /// @brief 事件队列
     QueueHandle_t event;
+    /// @brief web服务器
+    dataMonitorInstance_t *monitor;
 
-    // /// @brief web服务器
-    // webServiceInstance_t *webService;
-
-    // /// cjson对象管理
-    // powerInfoCjsonMsg_t deviceInfoMsg;
-    // powerStateCjsonMsg_t deviceStateMsg;
 
     /// 同步参数管理
     // syncManage_t syncManage;
@@ -104,6 +97,10 @@ int motorManageInit(void)
     // 注册消息队列
     m->event = sysEventRegister(SYS_EVENT_NODE_MOTOR, "motor", m);
     ASSERT(m->event != NULL, "sys event register failed");
+    
+    // 初始化数据监控实例
+    m->monitor = dataMonitorNew("motor");
+    ASSERT(m->monitor != NULL, "data monitor init failed");
 
     //创建电源管理任务
     xTaskCreate(motorManageTask, "motor", 4096, NULL, CONFIG_MOTOR_MANAGE_TASK_PRIORITY, NULL);
@@ -118,7 +115,7 @@ static void motorManageTask(void *pvParameters)
     ilog("motor manage task start...");
     while (1)
     {
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        vTaskDelay(20 / portTICK_PERIOD_MS);
         // 事件处理
         eventQueueReceive(SYS_EVENT_NODE_MOTOR, motorEventHandle);
 
@@ -167,7 +164,7 @@ static void motorEventHandle(void *user, int event, int size, uint8_t *data)
                     speedLevel = -50;
                 }
                 speedLevel = speedLevel / 5;
-                speedLevel = speedLevel + 10;
+                // ilog("motorEventHandle: isPressed=%d, speedLevel=%d", rotaryEvent->isPressed, speedLevel);
                 motorSetConfig(m->motor, rotaryEvent->isPressed, speedLevel);
             }
             break;
@@ -181,7 +178,6 @@ static void motorManageUpdateInfo(motorController_t *motor)
 {
     static int lastSpeedLevel = 0;
     static bool lastIsPressed = false;
-    // motorManage_t *m = getInstance();
     int speedLevel = motorGetSpeedLevel(motor);
     bool isPressed = motorGetEnable(motor);
 
@@ -190,7 +186,12 @@ static void motorManageUpdateInfo(motorController_t *motor)
         lastIsPressed = isPressed;
         motorMessageEvent_t motorMessageEvent = {0};
         motorMessageEvent.isPressed = isPressed;
-        motorMessageEvent.speedLevel = speedLevel-10;
+        motorMessageEvent.speedLevel = speedLevel;
         sysEventPost(SYS_EVENT_NODE_BUS_DEVICE, SYS_EVENT_MOTOR_MESSAGE, &motorMessageEvent, sizeof(motorMessageEvent_t));
     }
+
+    motorManage_t *m = getInstance();
+    const motorState_t *motorState = getMotorState(motor);
+    dataMonitorSetMotorState(m->monitor, motorState, 20);
+
 }

@@ -29,8 +29,17 @@
  * @brief 配置总线设备管理任务优先级
  * 
  */
- #ifndef CONFIG_BUS_DEVICE_TASK_PRIORITY
- #define CONFIG_BUS_DEVICE_TASK_PRIORITY     10
- #endif
+#ifndef CONFIG_BUS_DEVICE_TASK_PRIORITY
+#define CONFIG_BUS_DEVICE_TASK_PRIORITY     10
+#endif
+
+/**
+ * @brief 配置数据监控管理任务优先级
+ * 
+ */
+#ifndef CONFIG_DATA_MONITOR_TASK_PRIORITY
+#define CONFIG_DATA_MONITOR_TASK_PRIORITY     5
+#endif
+ 
 
 #endif
