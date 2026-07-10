@@ -374,8 +374,13 @@ void coilManageSchedule(coilManage_t *coil)
         ldc1614_debug(coil);
     }
 
+    // 只要有一个通道更新就会更新  未更新的通道使用上次的数据上报
+    uint16_t data;
+    ret = ldc1614ReadRegister16(coil, LDC1614_STATUS_REG, &data);
+    dlog("status register: 0x%04X", data);
     for(int i = 0; i < 4; i++) {
-        if (coil->config->channelEna & (1 << i)) {
+        if (coil->config->channelEna & (1 << i) && (data & (1<< (3-i))) ) {
+            dlog("channel[%d] ena: %d, status: %d", i, coil->config->channelEna & (1 << i), data & (1<< (3-i)));
             ret = ldc1614ReadChannelData(coil, i);
             if (ret != RET_SUCCESS) {
                 elog("LDC1614 read channel data failed, bus=%d, address=0x%x, channel=%d", coil->bus, coil->config->address, i);

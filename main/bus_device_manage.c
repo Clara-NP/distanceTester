@@ -167,11 +167,12 @@ static void busDeviceManageTask(void *pvParameters)
 {
     busDeviceManage_t *m = getInstance();
     busDevices_t *device;
+    TickType_t xLastWakeTime = xTaskGetTickCount();
 
     ilog("bus device manage task start...");
 
     while (1) {
-        vTaskDelay(20 / portTICK_PERIOD_MS);
+        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(20));
 
         // 事件处理
         eventQueueReceive(SYS_EVENT_NODE_BUS_DEVICE, busDeviceEventHandle);
@@ -200,7 +201,7 @@ static void busDeviceEventHandle(void *user, int event, int size, uint8_t *data)
     switch (event) {
         case SYS_EVENT_MOTOR_MESSAGE:
             motorMessageEvent_t *motorMessageEvent = (motorMessageEvent_t *)data;
-            ilog("bus device isPressed: %d, speedLevel: %d", motorMessageEvent->isPressed, motorMessageEvent->speedLevel);
+            // ilog("bus device isPressed: %d, speedLevel: %d", motorMessageEvent->isPressed, motorMessageEvent->speedLevel);
             displaySetSpeedLevel(motorMessageEvent->speedLevel);
             displaySetIsPressed(motorMessageEvent->isPressed);
             break;
@@ -217,8 +218,9 @@ static void busDeviceUpdateInfo(void)
         switch (device->info->type) {
             case BUS_DEVICE_TYPE_COIL:
                 coilManageState_t *coilState = getCoilState(device->bus);
-                if (coilState) {
+                if (coilState && coilState->updateTime > 0) {
                     dataMonitorSetCoilState(m->monitor, coilState, 20);
+                    coilState->updateTime = 0;
                 }
             break;
         }

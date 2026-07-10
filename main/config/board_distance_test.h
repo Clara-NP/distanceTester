@@ -67,7 +67,7 @@ static const canConfig_t s_cans[] =
  */
 static const i2cConfig_t s_i2cs[] =
 {
-    {.id = EM_I2C_1, .chip = I2C_CHIP_SOC, .port = _I2C1, .rate = 100000, .chipParameter = "scl:18,sda:17"}
+    {.id = EM_I2C_1, .chip = I2C_CHIP_SOC, .port = _I2C1, .rate = 400000, .chipParameter = "scl:18,sda:17"}
 };
 
 /**

@@ -163,7 +163,7 @@ static void controlManageTask(void *pvParameters)
 {
     controlManage_t *m = getInstance();
     bool keyPressed = false;
-
+    TickType_t xLastWakeTime = xTaskGetTickCount();
     ilog("control manage task start...");
     static int lastCount = 0;
     int count = 0;
@@ -172,6 +172,7 @@ static void controlManageTask(void *pvParameters)
     
     while (1)
     {
+        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(20));
         memset(&rotaryEventMsg, 0, sizeof(rotaryEncoderEvent_t));
         /// 按键检测
         keyPressed = keyDetection(m->ioModule.rotaryKey);
@@ -219,7 +220,6 @@ static void controlManageTask(void *pvParameters)
     //     }
     // #endif
 
-        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
 

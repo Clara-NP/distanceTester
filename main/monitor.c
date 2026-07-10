@@ -78,9 +78,9 @@ dataMonitorInstance_t* dataMonitorNew(const char* name)
 
 static void dataMonitorTask(void *pvParameters)
 {
-    while(1)
-    {
-        vTaskDelay(pdMS_TO_TICKS(100));
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    while(1) {
+        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(20));
         dataMonitorUpdateInfo();
     }
 }
@@ -91,8 +91,8 @@ static void dataMonitorUpdateInfo(void)
     if (xSemaphoreTake(m->dataMutex, portMAX_DELAY) != pdPASS) {
         return;
     }
-
-    ilog("telemetry t=%u coil_ready=%d coil_conn=%d coil_t=%u ch0=%u ch1=%u ch2=%u ch3=%u motor_t=%u rpm=%d",
+    if (m->coilState.updateTime > 0) {
+        ilog("telemetry t=%u coil_ready=%d coil_conn=%d coil_t=%u ch0=%u ch1=%u ch2=%u ch3=%u motor_t=%u rpm=%d",
                                                                                     (unsigned int)upTime(),
                                                                                     m->coilState.ready,
                                                                                     m->coilState.connected,
@@ -103,6 +103,8 @@ static void dataMonitorUpdateInfo(void)
                                                                                     (unsigned int)m->coilState.data[3],
                                                                                     (unsigned int)m->motorState.actualSpeedUpdateTime,
                                                                                     m->motorState.actualSpeed);
+        m->coilState.updateTime = 0;
+    }
     xSemaphoreGive(m->dataMutex);
 
     return ;

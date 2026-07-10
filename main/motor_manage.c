@@ -99,7 +99,7 @@ int motorManageInit(void)
     ASSERT(m->event != NULL, "sys event register failed");
     
     // 初始化数据监控实例
-    m->monitor = dataMonitorNew("motor");
+    m->monitor = dataMonitorNew("bus_device");
     ASSERT(m->monitor != NULL, "data monitor init failed");
 
     //创建电源管理任务
@@ -111,11 +111,12 @@ int motorManageInit(void)
 static void motorManageTask(void *pvParameters)
 {
     motorManage_t *m = getInstance();
+    TickType_t xLastWakeTime = xTaskGetTickCount();
 
     ilog("motor manage task start...");
     while (1)
     {
-        vTaskDelay(20 / portTICK_PERIOD_MS);
+        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(20));
         // 事件处理
         eventQueueReceive(SYS_EVENT_NODE_MOTOR, motorEventHandle);
 
