@@ -53,8 +53,12 @@ typedef struct
 
     /// @brief DJI反馈的真实转速
     int16_t actualSpeed;
+    /// @brief DJI反馈的实际扭矩
+    int16_t actualTorque;
+    /// @brief DJI返回的机械角度
+    int16_t actualAngle;
     /// @brief 真实转速更新时间
-    sysTick_t actualSpeedUpdateTime;
+    sysTick_t dataUpdateTime;
 }motorState_t;
 
 /**

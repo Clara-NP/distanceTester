@@ -275,7 +275,9 @@ static void __processData(motorController_t *motor)
 
     // 解析receive数据
     motor->state.actualSpeed = (int16_t)(((uint16_t)receive->frame.speedH << 8) | receive->frame.speedL);
-    motor->state.actualSpeedUpdateTime = upTime();
+    motor->state.actualTorque = (int16_t)(((uint16_t)receive->frame.torqueH << 8) | receive->frame.torqueL);
+    motor->state.actualAngle = (int16_t)(((uint16_t)receive->frame.angleH << 8) | receive->frame.angleL);
+    motor->state.dataUpdateTime = upTime();
     receive->valid = false;
     // dlog("processData: canId=%d", receive->canId);
 }
