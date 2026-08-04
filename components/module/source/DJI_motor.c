@@ -298,14 +298,15 @@ void motorSetConfig(motorController_t *motor, bool isChange, int speedLevel)
     dlog("current data: enable=%d, speedLevel=%d, outputCurrentSet=%d", motor->enable, motor->speedLevel, motor->outputCurrentSet);
     if (isChange) {
         motor->enable = !motor->enable;
-        if (!motor->enable) {
-            motor->speedLevel = 0;
-        }
     }
-    if (motor->enable && speedLevel != motor->speedLevel) {
+    if (speedLevel != motor->speedLevel) {
         motor->speedLevel = speedLevel;
     }
-    motor->outputCurrentSet = speedLevel >= 0 ?controlData[motor->speedLevel]: -1*controlData[-1*motor->speedLevel];
+    if (motor->enable) {
+        motor->outputCurrentSet = speedLevel >= 0 ?controlData[motor->speedLevel]: -1*controlData[-1*motor->speedLevel];
+    } else {
+        motor->outputCurrentSet = 0;
+    }
     dlog("set data: enable=%d, speedLevel=%d, outputCurrentSet=%d", motor->enable, motor->speedLevel, motor->outputCurrentSet);
 }
 

@@ -179,6 +179,7 @@ static void controlManageTask(void *pvParameters)
         if (keyPressed) {
             rotaryEventMsg.isVaild = true;
             rotaryEventMsg.isPressed = true;
+            rotaryEventMsg.count = lastCount;
             // ilog("rotaryKey pressed");
             // 向电机控制发送命令
         }
@@ -192,6 +193,7 @@ static void controlManageTask(void *pvParameters)
 
         // ilog("rotaryEventMsg.isVaild: %d", rotaryEventMsg.isVaild);
         if(rotaryEventMsg.isVaild) {
+            // ilog("rotaryKey pressed, count=%d", rotaryEventMsg.count);
             sysEventPost(SYS_EVENT_NODE_MOTOR, SYS_EVENT_ROTARY_MESSAGE, &rotaryEventMsg, sizeof(rotaryEncoderEvent_t));
             // ilog("rotaryEventMsg sent");
         } else {

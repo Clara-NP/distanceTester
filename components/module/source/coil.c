@@ -361,8 +361,9 @@ void coilManageSchedule(coilManage_t *coil)
     if (!coil->state.ready || !coil->state.connected) {
         ret = ldc1614Config(coil);
         if (ret != RET_SUCCESS) {
-            coil->timeoutCount++;
+            // timeoutCount 默认值为0
             if (coil->timeoutCount < 3) {
+                coil->timeoutCount++;
                 elog("LDC1614 configure failed, bus=%d, address=0x%x", coil->bus, coil->config->address);
             }
             return;
