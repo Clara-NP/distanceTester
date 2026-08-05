@@ -10,7 +10,7 @@
 typedef struct motorController motorController_t;
 
 #ifndef CONFIG_MOTOR_PROCESS_TIME
-#define CONFIG_MOTOR_PROCESS_TIME   50
+#define CONFIG_MOTOR_PROCESS_TIME   5
 #endif
 #ifndef CONFIG_MOTOR_SEND_TIME
 #define CONFIG_MOTOR_SEND_TIME   1000
@@ -51,12 +51,14 @@ typedef struct
     /// @brief 厂商相关状态码，P0
     uint32_t manufacturerState;
 
-    /// @brief DJI反馈的真实转速
-    int16_t actualSpeed;
-    /// @brief DJI反馈的实际扭矩
-    int16_t actualTorque;
+    // /// @brief DJI反馈的真实转速
+    // int16_t actualSpeed;
+    // /// @brief DJI反馈的实际扭矩
+    // int16_t actualTorque;
     /// @brief DJI返回的机械角度
     int16_t actualAngle;
+    /// @brief 累计机械角增量（编码器计数，可超过单圈）
+    int32_t totalAngle;
     /// @brief 真实转速更新时间
     sysTick_t dataUpdateTime;
 }motorState_t;

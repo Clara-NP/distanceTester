@@ -91,20 +91,15 @@ static void dataMonitorUpdateInfo(void)
     if (xSemaphoreTake(m->dataMutex, portMAX_DELAY) != pdPASS) {
         return;
     }
-    if (m->coilState.updateTime > 0) {
-        ilog("telemetry t=%u coil_ready=%d coil_conn=%d coil_t=%u ch0=%u ch1=%u ch2=%u ch3=%u motor_t=%u angle=%d rpm=%d torque=%d",
-                                                                                    (unsigned int)upTime(),
-                                                                                    m->coilState.ready,
-                                                                                    m->coilState.connected,
-                                                                                    (unsigned int)m->coilState.updateTime,
-                                                                                    (unsigned int)m->coilState.data[0],
-                                                                                    (unsigned int)m->coilState.data[1],
-                                                                                    (unsigned int)m->coilState.data[2],
-                                                                                    (unsigned int)m->coilState.data[3],
-                                                                                    (unsigned int)m->motorState.dataUpdateTime,
-                                                                                    m->motorState.actualAngle,
-                                                                                    m->motorState.actualSpeed,
-                                                                                    m->motorState.actualTorque);
+    if (m->coilState.updateTime > 0 && m->motorState.dataUpdateTime > 0) {
+        // totalAngle 为 int32 累计计数；先转 float 再运算，避免整型中间结果溢出
+        float rev = (float)m->motorState.totalAngle / 8192.0f;
+        int distance = (int)(rev / 36.0f * 5.0f * 10.0f); // 0.1mm
+
+        ilog("coil_t=%u, ch0 = %d,ch1 = %d, motor_t = %u, distance = %d (0.1 mm)", 
+            (unsigned int)m->coilState.updateTime, m->coilState.data[0], m->coilState.data[1],
+            (unsigned int)m->motorState.dataUpdateTime, distance);
+        
         m->coilState.updateTime = 0;
     }
     xSemaphoreGive(m->dataMutex);

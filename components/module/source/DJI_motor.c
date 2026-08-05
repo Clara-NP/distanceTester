@@ -1,6 +1,7 @@
 #include "common/generic.h"
 #include "can/can.h"
 #include "motor.h"
+#include <math.h>
 
 #define TRACE_TAG "DJI-motor"
 #define TRACE_LEVEL T_INFO
@@ -15,7 +16,7 @@
  * 
  */
 #ifndef CONFIG_POWER_RECEIVE_BUFFER_ITEM_SIZE
-#define CONFIG_POWER_RECEIVE_BUFFER_ITEM_SIZE   1
+#define CONFIG_POWER_RECEIVE_BUFFER_ITEM_SIZE   64
 #endif
 
 
@@ -68,6 +69,7 @@ struct motorController
     // uint8_t setConfigAttempts;
 
     /// 接收缓存
+    int receiveNum;
     receiveFrame_t receive[CONFIG_POWER_RECEIVE_BUFFER_ITEM_SIZE];
 
     // /// power信息 硬件相关(软硬件型号/厂商/序列号...) 暂时不需要
@@ -227,25 +229,30 @@ static void __loopReceive(motorController_t *motor)
 {
     int ret = RET_FAILED;
     receiveFrame_t* receive = &motor->receive[0];
-    int time = 0;
 
+    if (motor->receiveNum > 0 && motor->enable) {
+        wlog("last data not processed, num=%d", motor->receiveNum);
+        motor->receiveNum = 0;
+    }
     // 尽量一次将 can rx queue 中的数据全部读出
     // 同时需要避免在这里耗时太久
-    while(time < 10) {
+    while(motor->receiveNum < 64) {
         ret = canReceiveData(motor->can, &receive->canId, (uint8_t *)&receive->frame, sizeof(receive->frame));
         if(ret > 0) {
-            time++;
+            motor->receiveNum++;
+            receive++;
             continue;
         }
         break;
     }
-    if (time > 0) {
+    if (motor->receiveNum > 0) {
         motor->timeoutCount = 0;
         receive->valid = true;
-        receive->expired = upTime() + 100;   // 100ms 超时
+        receive->expired = upTime() + 100;   // 100ms 超时 认为数据无效
         motor->state.connected = true;
         // ilog("canReceiveData: canId=%d, time=%d", receive->canId, time);
     } else {
+        wlog("canReceiveData: no data");
         if (motor->timeoutCount > 3) {
             // connected = false;
             motor->state.connected = false;
@@ -255,30 +262,89 @@ static void __loopReceive(motorController_t *motor)
 
         elog("canReceiveData: no data timeoutCount=%d", motor->timeoutCount);
     }
+
+    dlog("recv %d msg", motor->receiveNum);
+    // receive = &motor->receive[0];
+    // int16_t actualAngle[30] = {0};
+    // for(int i = 0; i < 30; i++) {
+    //     actualAngle[i] = (int16_t)(((uint16_t)receive->frame.angleH << 8) | receive->frame.angleL);
+    //     // ilog("[%d] %d", i, actualAngle);
+    //     receive++;
+    // }
+    // ilog("[0] = %d [1] = %d [2] = %d [3] = %d [4] = %d [5] = %d [6] = %d [7] = %d [8] = %d [9] = %d", 
+    //     actualAngle[0], actualAngle[1], actualAngle[2], actualAngle[3], actualAngle[4], 
+    //     actualAngle[5], actualAngle[6], actualAngle[7], actualAngle[8], actualAngle[9]);
 }
 
 
 static void __processData(motorController_t *motor)
 {
-    // int ret = RET_FAILED;
-    receiveFrame_t* receive = &motor->receive[0];
+    receiveFrame_t *receive = &motor->receive[0];
+    static int32_t totalAngle = 0;
+    static int16_t lastAngle = 0;
+    int32_t deltaAngle = 0;
+    // static int16_t angle[20] = {0};
+    // static int i = 0;
 
-    if (!receive->valid) {
-        wlog("processData: no valid data");
+    // if (!receive->valid) {
+    //     wlog("processData: no valid data");
+    //     return;
+    // }
+
+    // if (upTimeAfter(upTime(), receive->expired)) {
+    //     receive->valid = false;
+    //     wlog("processData: data expired, canId=%d", receive->canId);
+    //     return;
+    // }
+
+    if (motor->receiveNum == 0) {
         return;
     }
 
-    if (upTimeAfter(upTime(), receive->expired)) {
-        receive->valid = false;
-        wlog("processData: data expired, canId=%d", receive->canId);
-        return;
+
+    int16_t actualAngle = 0;
+    int16_t actualSpeed = 0;
+    int32_t deltaSum = 0;
+    actualSpeed = (int16_t)(((uint16_t)receive[0].frame.speedH << 8) | receive[0].frame.speedL);
+    if (motor->enable || (!motor->enable && fabsf(actualSpeed) > 5)) {
+        for (int i = 0; i < motor->receiveNum; i++) {
+            actualAngle = (int16_t)(((uint16_t)receive[i].frame.angleH << 8) | receive[i].frame.angleL);
+
+            // 首次记录，只初始化基准角度，不累加
+            if (motor->enable && totalAngle == 0 && lastAngle == 0 && deltaSum == 0 && i == 0) {
+                lastAngle = actualAngle;
+                continue;
+            }
+
+            // 环内只计算相对上一帧的增量（最短路径解缠，周期 8192）
+            deltaAngle = (int32_t)actualAngle - (int32_t)lastAngle;
+            if (deltaAngle > 4096) {
+                deltaAngle -= 8192;
+            } else if (deltaAngle < -4096) {
+                deltaAngle += 8192;
+            }
+            deltaSum += deltaAngle;
+            lastAngle = actualAngle;
+        }
+        // for 结束后再累加总角度
+        totalAngle += deltaSum;
+
+        motor->receiveNum = 0;
+        motor->state.actualAngle = actualAngle;
+        motor->state.totalAngle = totalAngle;
+        motor->state.dataUpdateTime = upTime();
+
+    } else {
+        totalAngle = 0;
+        lastAngle = 0;
+        motor->state.dataUpdateTime = 0;
     }
 
     // 解析receive数据
-    motor->state.actualSpeed = (int16_t)(((uint16_t)receive->frame.speedH << 8) | receive->frame.speedL);
-    motor->state.actualTorque = (int16_t)(((uint16_t)receive->frame.torqueH << 8) | receive->frame.torqueL);
-    motor->state.actualAngle = (int16_t)(((uint16_t)receive->frame.angleH << 8) | receive->frame.angleL);
-    motor->state.dataUpdateTime = upTime();
+    // motor->state.actualSpeed = (int16_t)(((uint16_t)receive->frame.speedH << 8) | receive->frame.speedL);
+    // motor->state.actualTorque = (int16_t)(((uint16_t)receive->frame.torqueH << 8) | receive->frame.torqueL);
+    // motor->state.actualAngle = (int16_t)(((uint16_t)receive->frame.angleH << 8) | receive->frame.angleL);
+    // motor->state.dataUpdateTime = upTime();
     receive->valid = false;
     // dlog("processData: canId=%d", receive->canId);
 }
