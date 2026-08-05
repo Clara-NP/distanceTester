@@ -148,6 +148,9 @@ static void motorManageTask(void *pvParameters)
 }
 
 
+#define MOTOR_SPEED_LEVEL 10             // 分为几个等级
+#define MOTOR_SPEED_STEP 10              // 每个等级对应的步长
+#define MOTOR_SPEED_MAX    (MOTOR_SPEED_STEP*MOTOR_SPEED_LEVEL)
 
 static void motorEventHandle(void *user, int event, int size, uint8_t *data)
 {
@@ -159,12 +162,12 @@ static void motorEventHandle(void *user, int event, int size, uint8_t *data)
 
             if (rotaryEvent->isVaild) {
                 speedLevel = rotaryEvent->count;
-                if (speedLevel > 50) {
-                    speedLevel = 50;
-                } else if (speedLevel < -50) {
-                    speedLevel = -50;
+                if (speedLevel > MOTOR_SPEED_MAX) {
+                    speedLevel = MOTOR_SPEED_MAX;
+                } else if (speedLevel < -MOTOR_SPEED_MAX) {
+                    speedLevel = -MOTOR_SPEED_MAX;
                 }
-                speedLevel = speedLevel / 5;
+                speedLevel = speedLevel / MOTOR_SPEED_STEP;
                 // ilog("motorEventHandle: isPressed=%d, speedLevel=%d", rotaryEvent->isPressed, speedLevel);
                 motorSetConfig(m->motor, rotaryEvent->isPressed, speedLevel);
             }

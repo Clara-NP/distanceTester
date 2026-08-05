@@ -109,7 +109,8 @@ struct motorController
 };
 
 
-const int controlData[11] = {0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000};
+const int controlData[11] = {0, 450, 460, 500, 550, 600, 650, 700, 750, 800};
+// const int controlData[11] = {0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000};
 
 #define RESET_EXPIRED_TIME(_command, _time)     _command = upTime() + (_time)
 static void __loopReceive(motorController_t *motor);
