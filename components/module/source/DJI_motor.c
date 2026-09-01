@@ -212,11 +212,7 @@ void motorSchedule(motorController_t *motor)
         motor->processTimer = upTime() + CONFIG_MOTOR_PROCESS_TIME;
     }
 
-    if (!motor->enable) {
-        return;
-    }
-
-    // 数据发送
+    // 使能：周期下发电流；失能/急停：仍须下发 0 电流，不可跳过
     if (upTimeAfter(now, motor->sendTimer)) {
         __sendData(motor);
         motor->sendTimer = upTime() + CONFIG_MOTOR_SEND_TIME;
@@ -361,6 +357,8 @@ static void __sendData(motorController_t *motor)
 
 void motorSetConfig(motorController_t *motor, bool isChange, int speedLevel)
 {
+    int lastOutput = motor->outputCurrentSet;
+
     dlog("receive data: isChange=%d, speedLevel=%d", isChange, speedLevel);
     dlog("current data: enable=%d, speedLevel=%d, outputCurrentSet=%d", motor->enable, motor->speedLevel, motor->outputCurrentSet);
     if (isChange) {
@@ -373,6 +371,10 @@ void motorSetConfig(motorController_t *motor, bool isChange, int speedLevel)
         motor->outputCurrentSet = speedLevel >= 0 ?controlData[motor->speedLevel]: -1*controlData[-1*motor->speedLevel];
     } else {
         motor->outputCurrentSet = 0;
+    }
+    // 急停/电流变更：立即到期，下次 motorSchedule 马上发 CAN，不等 SEND_TIME
+    if (motor->outputCurrentSet != lastOutput) {
+        motor->sendTimer = upTime();
     }
     dlog("set data: enable=%d, speedLevel=%d, outputCurrentSet=%d", motor->enable, motor->speedLevel, motor->outputCurrentSet);
 }

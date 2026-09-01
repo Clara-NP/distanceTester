@@ -13,7 +13,7 @@ typedef struct motorController motorController_t;
 #define CONFIG_MOTOR_PROCESS_TIME   5
 #endif
 #ifndef CONFIG_MOTOR_SEND_TIME
-#define CONFIG_MOTOR_SEND_TIME   1000
+#define CONFIG_MOTOR_SEND_TIME   20
 #endif
 
 /**
