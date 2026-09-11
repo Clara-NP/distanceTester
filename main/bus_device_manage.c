@@ -47,11 +47,10 @@ typedef struct
 
 static coilConfig_t coilConfig = {
     .address = 0x2A,
-    .channelEna = COIL_CHANNEL_ENABLE_0 | COIL_CHANNEL_ENABLE_1,
-    // .detectionPeriod = 1000,
-    // .samplePeriodP0 = 100,
-    // .samplePeriodP1 = 200,
-    // .samplePeriodP2 = 300,
+    .channelEna = COIL_CHANNEL_ENABLE_1,
+    .settleCount = 0x0400,
+    .idrive = 17,
+    .refClkExt = 0,
 };
 
 static const lcdDisplayConfig_t displayConfig = {
@@ -217,10 +216,10 @@ static void busDeviceUpdateInfo(void)
         busDevices_t *device = &m->device[i];
         switch (device->info->type) {
             case BUS_DEVICE_TYPE_COIL:
-                coilManageState_t *coilState = getCoilState(device->bus);
-                if (coilState && coilState->updateTime > 0) {
+                const coilManageState_t *coilState = getCoilState(device->bus);
+                if (coilState && coilState->valid && coilState->updateTime > 0) {
                     dataMonitorSetCoilState(m->monitor, coilState, 20);
-                    coilState->updateTime = 0;
+                    coilStateConsume(device->bus);
                 }
             break;
         }
